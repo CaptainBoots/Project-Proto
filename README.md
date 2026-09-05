@@ -55,6 +55,7 @@ The ID ranges:
 - 000000 - Blank / Non Applicable / No ID
 - 000001-000100 - Launcher ( PyToolBox and CToolBox )
 - 000101-001100 - Nova Tools
+- 001101-002100 - Avali Tools
 - 001101-999800 - Unreserved
 - 999801-999900 - Special Helpers
 - 999901-999999 - Top End Buffer
