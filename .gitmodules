@@ -4,3 +4,9 @@
 [submodule "Avali-Tools"]
 	path = Avali-Tools
 	url = https://github.com/CaptainBoots/Avali-Tools.git
+[submodule "Synth-Tools"]
+	path = Synth-Tools
+	url = https://github.com/CaptainBoots/Synth-Tools.git
+[submodule "Proto-Games"]
+	path = Proto-Games
+	url = https://github.com/CaptainBoots/Proto-Games.git
