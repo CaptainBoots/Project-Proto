@@ -1,3 +1,6 @@
 [submodule "Nova-Tools"]
 	path = Nova-Tools
 	url = git@github.com:CaptainBoots/Nova-Tools.git
+[submodule "Avali-Tools"]
+	path = Avali-Tools
+	url = https://github.com/CaptainBoots/Avali-Tools.git
