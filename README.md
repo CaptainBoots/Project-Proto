@@ -17,9 +17,9 @@ Hello people! I hope you like the Project. I spent quite a while making this pro
 2. Download the latest **`CToolBox-Launcher-Portable.zip`** (for high-performance C++ launcher) or **`PyToolBox-Launcher.exe`** (for Python-compiled launcher).
 3. Run the executable and enjoy!
 
-*(I have made this unbelievably simple, I believe you can do it! :3)*
+*( I have made this unbelievably simple, I believe you can do it! )*
 
-### Linux (Tested & Supported)
+### Linux
 To run the ToolBox directly from source on Linux:
 ```bash
 # Clone the repository
@@ -30,20 +30,11 @@ cd Project-Proto/PyToolBox-Launcher
 python3 PyToolBox-Launcher.py
 ```
 
-*(If you encounter any platform-specific issues on Linux, please let me know in the Discord server!)*
+*( If you would like to run the c++ version (CToolBox) have fun its untested but it might work )*
 
 ---
 
-## Self-Updater
-
-Under the hood, PyToolBox-Launcher features a custom-engineered self-update mechanism designed specifically for Windows PyInstaller packages:
-* **No-Lock Rename:** Because Windows locks active running executables, the ToolBox dynamically renames its running binary to `ToolBox.exe.bak` (supporting incrementing suffixes like `.bak.1`, `.bak.2` to resolve any local collisions).
-* **Safe Downloading:** It streams the new compiled binary from GitHub Releases directly to the original path. If the network drops or the file is unavailable, it automatically rolls back your previous executable so you never lose your app.
-* **Automated Cleanup:** On next launch, the application uses wildcard pattern globbing to identify and cleanly purge all old `.bak` backup files from your directory.
-
----
-
-##  Troubleshooting 
+##  Troubleshooting
 
 ### Antivirus False Positives
 PyInstaller executables are sometimes flagged as false positives by Windows Defender or other security scanners. If the executable is blocked or cannot be deleted/compiled, add the installation or workspace folder to your antivirus exclusion list.
@@ -51,6 +42,22 @@ PyInstaller executables are sometimes flagged as false positives by Windows Defe
 ### Locked Executables
 If compiling with PyInstaller fails with a `PermissionError` (Access Denied), ensure that any background instances of `ToolBox.exe` are completely closed so they release their locks.
 
+---
+
+##  Tools & Subprojects
+Project Proto is a project for updating and running a set of tools made by me and a few others
+you can even join the project in the [**discord**](https://discord.gg/YDXpQPF6g9) and help make new tools!
+
+### Tool IDs
+Tools IDs are used by the Project to make managing the tools easier and fix issues from renaming tools if you want to make a tool you will get given a ID range if you ask in the discord server
+
+The ID ranges:
+- 000000 - Blank / Non Applicable / No ID
+- 000001-000100 - Launcher ( PyToolBox and CToolBox )
+- 000101-001100 - Nova Tools
+- 001101-999800 - Unreserved
+- 999801-999900 - Special Helpers
+- 999901-999999 - Top End Buffer
 ---
 
 i hope you all like the project and if you wana make a tool join the discord above.
