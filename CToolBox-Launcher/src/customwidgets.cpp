@@ -64,10 +64,10 @@ void TextChip::paintEvent(QPaintEvent* event) {
 }
 
 // CircleToggle
-CircleToggle::CircleToggle(QWidget* parent, bool enabled, const QString& color, int size, int pad)
+CircleToggle::CircleToggle(QWidget* parent, bool enabled, const QString& colour, int size, int pad)
     : QWidget(parent), m_enabled(enabled), m_size(size), m_pad(pad) {
     ThemePalette p = ThemeManager::instance().currentPalette();
-    m_color = QColor(color.isEmpty() ? p.accent : color);
+    m_color = QColor(colour.isEmpty() ? p.accent : colour);
     setFixedSize(size, size);
     setCursor(Qt::PointingHandCursor);
 }

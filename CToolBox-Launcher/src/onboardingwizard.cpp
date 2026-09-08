@@ -131,7 +131,7 @@ OnboardingWizard::OnboardingWizard(QWidget* parent) : QDialog(parent) {
     p3Layout->addWidget(p3Title);
 
     QLabel* p3Desc = new QLabel(
-        "Pick a default color palette to style your ToolBox dashboard. "
+        "Pick a default colour palette to style your ToolBox dashboard. "
         "You can always customize and change this anytime in Settings!"
     );
     p3Desc->setFont(ThemeManager::instance().qtFont(10));

@@ -29,7 +29,7 @@ class CircleToggle : public QWidget {
 signals:
     void toggled(bool value);
 public:
-    explicit CircleToggle(QWidget* parent = nullptr, bool enabled = true, const QString& color = "", int size = 20, int pad = 3);
+    explicit CircleToggle(QWidget* parent = nullptr, bool enabled = true, const QString& colour = "", int size = 20, int pad = 3);
     void set(bool value);
     bool get() const { return m_enabled; }
 protected:

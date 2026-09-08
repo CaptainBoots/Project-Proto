@@ -60,7 +60,7 @@ def uninstall_from_recorded_positions():
                         print(f"    Deleted file: {full_p}")
                         deleted_any = True
                 
-                # Check for build/dist folders in the install path
+                # Check for build/dist folders in the installation path
                 for folder in ["build", "dist"]:
                     full_f = os.path.join(install_path, folder)
                     if os.path.isdir(full_f):

@@ -374,7 +374,7 @@ void SettingsDialog::selectTheme(const QString& mode) {
     
     m_themePreview->setText(QString("(%1)").arg(ThemeManager::instance().labels()[mode]));
     
-    // Update label styles and toggles inside the dialog
+    // Update label styles and toggles inside the dialogue
     ThemePalette tp = ThemeManager::instance().currentPalette();
     QList<QWidget*> children = m_themeBody->findChildren<QWidget*>();
     for (QWidget* child : children) {
