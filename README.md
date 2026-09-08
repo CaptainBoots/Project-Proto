@@ -17,7 +17,7 @@ Hello people! I hope you like the Project. I spent quite a while making this pro
 2. Download the latest **`CToolBox-Launcher-Portable.zip`** (for high-performance C++ launcher) or **`PyToolBox-Launcher.exe`** (for Python-compiled launcher).
 3. Run the executable and enjoy!
 
-*( I have made this unbelievably simple, I believe you can do it! )*
+*(I have made this unbelievably simple, I believe you can do it!)*
 
 ### Linux
 To run the ToolBox directly from source on Linux:
@@ -30,7 +30,7 @@ cd Project-Proto/PyToolBox-Launcher
 python3 PyToolBox-Launcher.py
 ```
 
-*( If you would like to run the c++ version (CToolBox) have fun its untested but it might work )*
+*(If you would like to run the C++ version (CToolBox), have fun! It's untested, but it might work)*
 
 ---
 
@@ -45,14 +45,13 @@ If compiling with PyInstaller fails with a `PermissionError` (Access Denied), en
 ---
 
 ##  Tools & Subprojects
-Project Proto is a project for updating and running a set of tools made by me and a few others
-you can even join the project in the [**discord**](https://discord.gg/YDXpQPF6g9) and help make new tools!
+Project Proto is a project for updating and running a set of tools made by me and a few others. You can even join the project in the [**discord**](https://discord.gg/YDXpQPF6g9) and help make new tools!
 
 ### Tool IDs
 Tools IDs are used by the Project to make managing the tools easier and fix issues from renaming tools if you want to make a tool you will get given a ID range if you ask in the discord server
 
 The ID ranges:
-- 000000 - Blank / Non Applicable / No ID
+- 000000 - Blank / Non-Applicable / No ID
 - 000001-000100 - Launcher ( PyToolBox and CToolBox )
 - 000101-001100 - Nova Tools
 - 001101-002100 - Avali Tools
@@ -61,7 +60,7 @@ The ID ranges:
 - 999901-999999 - Top End Buffer
 ---
 
-i hope you all like the project and if you wana make a tool join the discord above.
+I hope you all like the project, and if you wanna make a tool, join the Discord above.
 
 *Made with <3 by:*
 1. Boots @CaptainBoots
