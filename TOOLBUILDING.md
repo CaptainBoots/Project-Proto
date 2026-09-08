@@ -29,7 +29,7 @@ OSC-MyNewTool/
 │   ├── app.py                  # Main App (QMainWindow)
 │   ├── circle_toggle.py        # Custom circular toggle widget
 │   ├── my_tool_tab.py          # Primary tab/view of the tool
-│   ├── settings_dialog.py      # Theme, port, and options config dialog
+│   ├── settings_dialogue.py      # Theme, port, and options config dialogue
 │   └── theme.py                # Visual theme registry, QSS builder, and fonts
 ├── __init__.py
 ├── config.py                   # Configuration I/O (JSON save/load)
@@ -307,7 +307,7 @@ class CircleToggle(QWidget):
                  pad: int = DEFAULT_PAD, command=None):
         super().__init__(parent)
         self._enabled = enabled
-        self._color = QColor(color or theme.ACCENT2)
+        self._color = QColor(colour or theme.ACCENT2)
         self._size = size
         self._pad = pad
         self.setFixedSize(size, size)
@@ -342,7 +342,7 @@ class CircleToggle(QWidget):
         self.update()
 
     def set_color(self, color: str):
-        self._color = QColor(color)
+        self._color = QColor(colour)
         self.update()
 ```
 
