@@ -496,13 +496,38 @@ void MainWindow::startAutoUpdate(const QString& remoteVer) {
                 #ifdef Q_OS_WIN
                 // Escape single quotes in path if present (e.g. "Boot's-ToolBox")
                 QString appDirNative = QDir::toNativeSeparators(appDir).replace("'", "''");
+                qint64 myPid = QCoreApplication::applicationPid();
                 
                 QString psCmd = QString(
-                    "Start-Sleep -Seconds 1; "
-                    "Expand-Archive -Path '%1\\update.zip' -DestinationPath '%1' -Force; "
-                    "Remove-Item '%1\\update.zip' -Force; "
-                    "Start-Process '%1\\CToolBox-Launcher.exe'"
-                ).arg(appDirNative);
+                    "$pidToWait = %1; "
+                    "$appDir = '%2'; "
+                    "$zipPath = '%2\\update.zip'; "
+                    "$timeout = 100; "
+                    "while ((Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) -and ($timeout -gt 0)) { "
+                        "Start-Sleep -Milliseconds 100; "
+                        "$timeout--; "
+                    "} "
+                    "Start-Sleep -Milliseconds 500; "
+                    "$extracted = $false; "
+                    "for ($retry = 0; $retry -lt 5; $retry++) { "
+                        "try { "
+                            "Expand-Archive -LiteralPath $zipPath -DestinationPath $appDir -Force -ErrorAction Stop; "
+                            "$extracted = $true; "
+                            "break; "
+                        "} catch { "
+                            "Start-Sleep -Seconds 1; "
+                        "} "
+                    "} "
+                    "if ($extracted) { "
+                        "Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue; "
+                        "Start-Process (Join-Path $appDir 'CToolBox-Launcher.exe'); "
+                    "} else { "
+                        "try { "
+                            "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                            "[System.Windows.Forms.MessageBox]::Show('Failed to extract CToolBox update. Please extract update.zip manually.', 'Update Error', 0, 16); "
+                        "} catch {} "
+                    "}"
+                ).arg(QString::number(myPid), appDirNative);
                 
                 bool ok = QProcess::startDetached("powershell.exe", {"-NoProfile", "-Command", psCmd});
                 if (ok) {

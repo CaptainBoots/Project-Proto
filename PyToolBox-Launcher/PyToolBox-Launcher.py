@@ -77,7 +77,7 @@ from PySide6.QtWidgets import (
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
 
 # ─── App metadata / runtime state ──────────────────────────────────────────
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 UPDATE_BRANCH = "main"           # Default selected update branch
 BETA_POPUP_SHOWN = False
 
@@ -2055,9 +2055,24 @@ def perform_update(remote_text=None, source_url=None):
 @Slot(str, str, str)
 def _on_confirm_main_update(prompt: str, remote_text: str, remote_url: str):
     """Slot for bridge.confirm_main_update — runs on the main thread."""
-
-    if QMessageBox.question(main_window, "Update Available", prompt) == QMessageBox.Yes:
+    msg_box = QMessageBox(main_window)
+    msg_box.setWindowTitle("Update Available")
+    msg_box.setText(prompt)
+    msg_box.setInformativeText("Would you like to update automatically now, or open the GitHub releases page to download manually?")
+    msg_box.setStyleSheet(qss())
+    
+    auto_btn = msg_box.addButton("Auto-Update", QMessageBox.ButtonRole.AcceptRole)
+    manual_btn = msg_box.addButton("Manual (GitHub)", QMessageBox.ButtonRole.ActionRole)
+    cancel_btn = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+    
+    msg_box.setDefaultButton(auto_btn)
+    msg_box.exec()
+    
+    clicked = msg_box.clickedButton()
+    if clicked == auto_btn:
         perform_update(remote_text=remote_text, source_url=remote_url)
+    elif clicked == manual_btn:
+        webbrowser.open("https://github.com/CaptainBoots/Project-Proto/releases")
     else:
         print(f"[Nova-Tools] Update skipped by user")
 
