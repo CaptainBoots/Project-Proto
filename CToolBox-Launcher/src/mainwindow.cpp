@@ -907,7 +907,7 @@ void MainWindow::patchLHMConfig() {
             QTextStream out(&file);
             out << content;
             file.close();
-            ConsoleWindow::appendLog("[LHM] Configuration patched successfully (web server & minimized options enabled).\n");
+            ConsoleWindow::appendLog("[LHM] Configuration patched successfully (web server & minimised options enabled).\n");
         }
     }
 }

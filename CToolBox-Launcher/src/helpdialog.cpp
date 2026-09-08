@@ -13,7 +13,7 @@ HelpDialog::HelpDialog(QWidget* parent) : QDialog(parent), m_currentPage(0) {
     m_pages = {
         {
             "Welcome to ToolBox",
-            "This control center manages and runs various modular optimization tools "
+            "This control centre manages and runs various modular optimization tools "
             "tailored for companion OSC network tracking.\n\n"
             "Features include:\n"
             "• Automated system update patches on initialization cycles.\n"
@@ -43,7 +43,7 @@ HelpDialog::HelpDialog(QWidget* parent) : QDialog(parent), m_currentPage(0) {
             "Status Bar",
             "The top bar of each script shows:\n\n"
             "Left: Script name and icon\n"
-            "Center: Version number\n"
+            "Centre: Version number\n"
             "Right: Current status\n\n"
             "Status Examples:\n"
             "• Status: Running — Script is active\n"

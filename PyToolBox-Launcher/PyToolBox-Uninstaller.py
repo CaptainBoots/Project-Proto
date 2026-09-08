@@ -68,7 +68,7 @@ def uninstall_from_recorded_positions():
                         print(f"    Deleted directory: {full_f}")
                         deleted_any = True
             except Exception as e:
-                print(f"    [Error] Failed to remove install path files: {e}")
+                print(f"    [Error] Failed to remove installation path files: {e}")
         else:
             print("    [Warning] Installation path too short, skipping for safety.")
 

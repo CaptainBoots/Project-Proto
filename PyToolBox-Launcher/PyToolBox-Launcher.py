@@ -18,6 +18,7 @@ import site
 import subprocess
 import sys
 import time
+# noinspection PyPep8Naming
 import xml.etree.ElementTree as ET
 import zipfile
 import webbrowser
@@ -76,7 +77,7 @@ from PySide6.QtWidgets import (
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
 
 # ─── App metadata / runtime state ──────────────────────────────────────────
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 UPDATE_BRANCH = "main"           # Default selected update branch
 BETA_POPUP_SHOWN = False
 
@@ -211,6 +212,7 @@ def discover_managed_scripts() -> list[dict]:
     Looks for subdirectories containing 'main.py'. Parsed tool names are extracted
     from the 'NAME' variable, and unique 6-digit IDs are parsed from 'TOOL_ID'.
     """
+    # noinspection PyListCreation
     detected = []
 
     # 1. Always include LibreHardwareMonitor as a static default helper tool
@@ -285,6 +287,7 @@ def discover_managed_scripts() -> list[dict]:
                                         shutil.rmtree(new_folder_path, ignore_errors=True)
                                     os.rename(old_folder_path, new_folder_path)
                                     print(f"[Self-Healing] Renamed local directory '{old_folder}' -> '{folder_name}' to match remote rename!")
+                                # noinspection PyShadowing
                                 except Exception as ex:
                                     print(f"[Self-Healing] Failed to rename directory: {ex}")
                             
@@ -614,8 +617,10 @@ class TextChip(QLabel):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        # noinspection PyUnresolvedReferences
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setBrush(self._chip_bg)
+        # noinspection PyUnresolvedReferences
         painter.setPen(Qt.NoPen)
         painter.drawRoundedRect(self.rect(), self._radius, self._radius)
         painter.end()
@@ -634,6 +639,7 @@ class StripeBackground(QWidget):
 
     def paintEvent(self, _event):
         painter = QPainter(self)
+        # noinspection PyUnresolvedReferences
         painter.setRenderHint(QPainter.Antialiasing, False)
         w, h = self.width(), self.height()
 
@@ -656,6 +662,7 @@ class StripeBackground(QWidget):
                     QPointF(x0 + stripe_w + h, h), QPointF(x0 + h, h),
                 ])
                 painter.setBrush(QColor(colour))
+                # noinspection PyUnresolvedReferences
                 painter.setPen(Qt.NoPen)
                 painter.drawPolygon(poly)
             start += cycle
@@ -710,7 +717,7 @@ class CircleToggle(QWidget):
 # hand-off: emitting from any thread auto-queues onto the thread that owns
 # the receiving QObject (main_window, which lives on the GUI thread). Every
 # background-thread call site below emits through this instead of touching
-# a widget directly; the actual widget/dialog code runs in the connected
+# a widget directly; the actual widget/dialogue code runs in the connected
 # slots on ToolBoxWindow, i.e. on the main thread. The underlying decisions
 # (what to check, what to compare, when an update is "available") are 100%
 # unchanged from the original.
@@ -867,6 +874,7 @@ class OnboardingWizard(QDialog):
         p1_layout.setSpacing(15)
 
         p1_logo = QLabel()
+        # noinspection PyShadowing
         icon_path = os.path.join(SCRIPT_DIR, "../Images", "Boot's-ToolBox-256.ico")
         if os.path.exists(icon_path):
             p1_logo.setPixmap(QIcon(icon_path).pixmap(96, 96))
@@ -1159,6 +1167,7 @@ def load_managed_scripts():
     try:
         with open(INSTALL_PATH_POINTER, "w", encoding="utf-8") as f_inst:
             f_inst.write(os.path.abspath(SCRIPT_DIR))
+    # noinspection PyShadowing
     except Exception as ex:
         print(f"[Config] Error saving install path pointer: {ex}")
 
@@ -1240,6 +1249,7 @@ def load_managed_scripts():
     try:
         with open(TOOLS_PATH_POINTER, "w", encoding="utf-8") as f_ptr:
             f_ptr.write(os.path.abspath(tools_root or ""))
+    # noinspection PyShadowing
     except Exception as ex:
         print(f"[Config] Error writing tools path pointer: {ex}")
 
@@ -1250,6 +1260,7 @@ def load_managed_scripts():
     set_theme(config.get("theme_mode", "rich_purple"))
     
     # Dynamically update global tools path and sub-paths!
+    # noinspection PyTypeChecker
     update_layout_paths(tools_root)
 
     # Verify version matches for upgrade/downgrade detection
@@ -1258,6 +1269,7 @@ def load_managed_scripts():
         try:
             with open(status_file, "w", encoding="utf-8") as f_status:
                 f_status.write(f"New executable v{VERSION} ran successfully.\n")
+        # noinspection PyShadowing
         except Exception as ex:
             print(f"[Config] Error writing status file: {ex}")
     else:
@@ -1278,6 +1290,7 @@ def load_managed_scripts():
                 with open(status_file, "w", encoding="utf-8") as f_status:
                     f_status.write(f"An old executable (v{config_version}) was run previously. Performing clean installation of tools...\n")
                 print(f"[Config] Cleaned old AppData cached files in: {appdata_toolbox_dir}")
+            # noinspection PyShadowing
             except Exception as ex:
                 print(f"[Config] Error during AppData clean installation process: {ex}")
             
@@ -1309,7 +1322,7 @@ def load_managed_scripts():
     except Exception as e:
         print(f"[Config] Error saving config inside tools directory: {e}")
 
-    # Enforce beta cleanup
+    # Enforce beta clean-up
     if UPDATE_BRANCH == "beta":
         if os.path.exists(TOOLBOX_CONFIG_FILE):
             try:
@@ -1422,6 +1435,7 @@ def _patch_lhm_config() -> None:
     lhm_dir = os.path.dirname(_lhm_exe_path())
     cfg_path = os.path.join(lhm_dir, "LibreHardwareMonitor.config")
 
+    # noinspection PyPep8Naming
     REQUIRED = {
         "runWebServerMenuItem": "true",
         "startMinMenuItem": "true",
@@ -1516,10 +1530,13 @@ def _show_lhm_started_popup() -> None:
 
 def launch_lhm() -> None:
     """Patch the LHM config, launch the exe with admin elevation, confirm success."""
+    # noinspection PyUnresolvedReferences
     main_window.footer_label.setText("Starting up Libre Hardware Monitor...")
+    # noinspection PyUnresolvedReferences
     QApplication.instance().processEvents()
 
     if not ensure_lhm(show_errors=True):
+        # noinspection PyUnresolvedReferences
         main_window.footer_label.setText("Error preparing Libre Hardware Monitor")
         return
 
@@ -1531,6 +1548,7 @@ def launch_lhm() -> None:
         if sys.platform == "win32":
             import ctypes
             shell32 = getattr(ctypes.windll, "shell32")
+            # noinspection PyPep8Naming
             ShellExecuteW = getattr(shell32, "ShellExecuteW")
             ret = ShellExecuteW(
                 None, "runas", dest, None, os.path.dirname(dest), 1
@@ -1543,9 +1561,11 @@ def launch_lhm() -> None:
             print(f"[LHM] Launched (PID: {p.pid})")
 
         _show_lhm_started_popup()
+        # noinspection PyUnresolvedReferences
         main_window.footer_label.setText("Ready")
     except Exception as e:
         print(f"[LHM] Launch failed: {e}")
+        # noinspection PyUnresolvedReferences
         main_window.footer_label.setText("Error launching Libre Hardware Monitor")
         QMessageBox.critical(main_window, "Launch Error", f"Failed to start LibreHardwareMonitor.\n\nDetails:\n{e}")
 
@@ -1730,24 +1750,32 @@ def launch_script(filename: str) -> None:
     if filename == LHM_FILENAME:
         launch_lhm()
         tool_states[filename] = TOOL_STATE_CURRENT if os.path.isfile(_lhm_exe_path()) else TOOL_STATE_MISSING
+        # noinspection PyUnresolvedReferences
         main_window.refresh_button_labels()
         return
 
     state = get_tool_state(filename)
     if state == TOOL_STATE_MISSING:
+        # noinspection PyUnresolvedReferences
         main_window.footer_label.setText(f"Downloading {filename}... (please wait)")
     elif state == TOOL_STATE_UPDATE:
+        # noinspection PyUnresolvedReferences
         main_window.footer_label.setText(f"Updating {filename}... (please wait)")
     else:
+        # noinspection PyUnresolvedReferences
         main_window.footer_label.setText(f"Starting up {filename}...")
 
     # Disable window to prevent double click while downloading/starting
+    # noinspection PyUnresolvedReferences
     main_window.setEnabled(False)
+    # noinspection PyUnresolvedReferences
     QApplication.instance().processEvents()
 
     def on_sync_finished(success: bool):
+        # noinspection PyUnresolvedReferences
         main_window.setEnabled(True)
         if not success:
+            # noinspection PyUnresolvedReferences
             main_window.footer_label.setText("Error preparing script")
             QMessageBox.critical(
                 main_window, f"{filename} Error",
@@ -1756,6 +1784,7 @@ def launch_script(filename: str) -> None:
             return
 
         tool_states[filename] = TOOL_STATE_CURRENT
+        # noinspection PyUnresolvedReferences
         main_window.refresh_button_labels()
 
         # Resolve local execution path
@@ -1772,17 +1801,21 @@ def launch_script(filename: str) -> None:
             )
 
             print(f"[Launcher] Successfully started {filename} (PID: {p.pid})")
+            # noinspection PyUnresolvedReferences
             main_window.footer_label.setText("Ready")
 
         except Exception as e:
             print(f"[Launcher] Failed to execute {filename}: {e}")
+            # noinspection PyUnresolvedReferences
             main_window.footer_label.setText("Error launching script")
             QMessageBox.critical(main_window, "Launch Error", f"Failed to start {filename}.\n\nTechnical details:\n{e}")
 
     # Async download in SyncWorker thread
     if state in (TOOL_STATE_MISSING, TOOL_STATE_UPDATE):
         main_window.sync_worker = SyncWorker(filename)
+        # noinspection PyUnresolvedReferences
         main_window.sync_worker.finished_signal.connect(on_sync_finished)
+        # noinspection PyUnresolvedReferences
         main_window.sync_worker.start()
     else:
         # Already current, run launch immediately
@@ -1791,7 +1824,7 @@ def launch_script(filename: str) -> None:
 
 def _parse_version(v_str: str) -> tuple[int, ...]:
     try:
-        return tuple(map(int, (v_str.split("."))))
+        return tuple(map(int, v_str.split(".")))
     except ValueError:
         return (0, 0, 0)
 
@@ -1924,6 +1957,7 @@ def perform_update(remote_text=None, source_url=None):
                         err_msg = f"HTTP {resp.status_code} - File not found or release unavailable"
                         last_error = err_msg
                         print(f"[Updater] {err_msg} for {download_url}")
+                # noinspection PyShadowing
                 except Exception as ex:
                     last_error = ex
                     print(f"[Updater] Error trying to download from {download_url}: {ex}")
@@ -1963,6 +1997,7 @@ def perform_update(remote_text=None, source_url=None):
             script_path = os.path.abspath(__file__)
             os.makedirs(BACKUP_DIR, exist_ok=True)
             script_name = os.path.splitext(os.path.basename(script_path))[0]
+            # noinspection PyShadowing
             backup_path = os.path.join(BACKUP_DIR, f"{script_name} {VERSION}.bak")
 
             with open(script_path, "r", encoding="utf-8") as f_src:
@@ -1983,6 +2018,7 @@ def perform_update(remote_text=None, source_url=None):
                     try:
                         os.remove(full_cfg_path)
                         print(f"[Updater] Wiped breaking config layout targets: {relative_cfg}")
+                    # noinspection PyShadowing
                     except Exception as ex:
                         print(f"[Updater] Error cleaning target configuration profile: {ex}")
 
@@ -1991,6 +2027,7 @@ def perform_update(remote_text=None, source_url=None):
             f"ToolBox updated to the latest available software build on branch '{UPDATE_BRANCH}'.\n\nThe system will now restart automatically."
         )
 
+        # noinspection PyUnresolvedReferences
         main_window.close()
         if is_frozen:
             # Clean PyInstaller environment variables so the new process doesn't think it is a child
@@ -2020,6 +2057,7 @@ def perform_update(remote_text=None, source_url=None):
 @Slot(str, str, str)
 def _on_confirm_main_update(prompt: str, remote_text: str, remote_url: str):
     """Slot for bridge.confirm_main_update — runs on the main thread."""
+    # noinspection PyUnresolvedReferences
     if QMessageBox.question(main_window, "Update Available", prompt) == QMessageBox.Yes:
         perform_update(remote_text=remote_text, source_url=remote_url)
     else:
@@ -2029,7 +2067,7 @@ def _on_confirm_main_update(prompt: str, remote_text: str, remote_url: str):
 def check_for_main_updates(silent: bool = True):
     """Runs on a background daemon thread (see the threading.Thread call at
     the bottom of this file). All network + version-comparison logic below
-    is unchanged from the original — only the dialog/footer touches were
+    is unchanged from the original — only the dialogue/footer touches were
     swapped for bridge.*.emit() so they execute safely on the main thread."""
     if not silent:
         bridge.footer_text.emit("Connecting to repository update server nodes...")
@@ -2284,7 +2322,7 @@ HELP_PAGES = [
     {
         "title": "Welcome to ToolBox",
         "content": (
-            "This control center manages and runs various modular optimization tools "
+            "This control centre manages and runs various modular optimization tools "
             "tailored for companion OSC network tracking.\n\n"
             "Features include:\n"
             "• Automated system update patches on initialization cycles.\n"
@@ -2320,7 +2358,7 @@ HELP_PAGES = [
         "content": (
             "The top bar of each script shows:\n\n"
             "Left: Script name and icon\n"
-            "Center: Version number\n"
+            "Centre: Version number\n"
             "Right: Current status\n\n"
             "Status Examples:\n"
             "• Status: Running — Script is active\n"
@@ -2610,10 +2648,13 @@ def open_settings():
             move_confirm = QMessageBox.question(
                 settings_win, "Move Existing Tools?",
                 f"Would you like to move your existing Nova-Tools files from:\n{old_tools_dir}\n\nto the new directory:\n{new_tools_dir}?",
+                # noinspection PyUnresolvedReferences
                 QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
             )
+            # noinspection PyUnresolvedReferences
             if move_confirm == QMessageBox.Cancel:
                 return
+            # noinspection PyUnresolvedReferences
             elif move_confirm == QMessageBox.Yes:
                 # Move files
                 try:
@@ -2627,6 +2668,7 @@ def open_settings():
                         else:
                             shutil.copy(src, dst)
                     print(f"[Config] Successfully copied tools to new folder: {new_tools_dir}")
+                # noinspection PyShadowing
                 except Exception as ex:
                     print(f"[Config] Error copying tools folder: {ex}")
                     QMessageBox.warning(settings_win, "Move Failed", f"Could not move all tools files:\n{ex}\n\nUsing new directory anyway.")
@@ -2643,6 +2685,7 @@ def open_settings():
         print(f"[Config] Tools folder set to: {TOOLS_ROOT_DIR}")
         
         # Refresh UI buttons label in case any tools changed their download state
+        # noinspection PyUnresolvedReferences
         main_window.refresh_button_labels()
 
     change_tools_btn = QPushButton("Change...")
@@ -2655,7 +2698,7 @@ def open_settings():
     body_layout.addLayout(tools_row)
 
     # ── Themes (collapsible, collapsed by default — matches the pattern
-    #    used in every other Nova-Tools settings dialog) ────────────────
+    #    used in every other Nova-Tools settings dialogue) ────────────────
     theme_header = QWidget()
     theme_header.setCursor(Qt.CursorShape.PointingHandCursor)
     theme_header_layout = QHBoxLayout(theme_header)
@@ -2702,10 +2745,12 @@ def open_settings():
                 f"color: {ACCENT2 if is_sel else TEXT}; background: transparent; border: none;"
             )
 
+    # noinspection PyShadowing
     def _select_theme(mode):
         theme_state["selected"] = mode
         _refresh_theme_rows()
         preview_lbl.setText(f"({THEME_LABELS.get(mode, mode)})")
+        # noinspection PyUnresolvedReferences
         main_window.set_theme(mode)
 
     for mode, label_text in THEME_LABELS.items():
@@ -2790,6 +2835,7 @@ def open_settings():
     def refresh_script_list():
         while list_inner_layout.count():
             item = list_inner_layout.takeAt(0)
+            # noinspection PyUnresolvedReferences
             w = item.widget()
             if w is not None:
                 w.deleteLater()
@@ -2797,6 +2843,7 @@ def open_settings():
         for idx, script in enumerate(MANAGED_SCRIPTS):
             script_row = QWidget()
             script_row.setStyleSheet(f"background-color: {BG};")
+            # noinspection PyShadowing
             row_layout = QHBoxLayout(script_row)
             row_layout.setContentsMargins(10, 6, 10, 6)
 
@@ -2847,6 +2894,7 @@ def open_settings():
         MANAGED_SCRIPTS.pop(idx)
         save_managed_scripts(MANAGED_SCRIPTS)
         refresh_script_list()
+        # noinspection PyUnresolvedReferences
         main_window.refresh_main_buttons()
 
     def add_script():
@@ -2880,6 +2928,7 @@ def open_settings():
         grid.addWidget(file_entry, 1, 1)
 
         def save_new_script():
+            # noinspection PyShadowing
             lbl = label_entry.text().strip()
             flm = file_entry.text().strip()
             if not lbl or not flm:
@@ -2889,6 +2938,7 @@ def open_settings():
             MANAGED_SCRIPTS.append({"filename": flm, "label": lbl, "custom": True})
             save_managed_scripts(MANAGED_SCRIPTS)
             refresh_script_list()
+            # noinspection PyUnresolvedReferences
             main_window.refresh_main_buttons()
             add_win.close()
 
@@ -2918,7 +2968,9 @@ def open_settings():
     nav_layout.addStretch(1)
 
     def show_console():
+        # noinspection PyUnresolvedReferences
         settings_win.console_dialog = ConsoleWindow(settings_win)
+        # noinspection PyUnresolvedReferences
         settings_win.console_dialog.setWindowModality(Qt.NonModal)
         settings_win.console_dialog.show()
 
@@ -3069,6 +3121,7 @@ class ToolBoxWindow(QMainWindow):
     def refresh_main_buttons(self):
         while self._buttons_layout.count():
             item = self._buttons_layout.takeAt(0)
+            # noinspection PyUnresolvedReferences
             w = item.widget()
             if w is not None:
                 w.deleteLater()
@@ -3109,6 +3162,7 @@ class ToolBoxWindow(QMainWindow):
         save_managed_scripts(MANAGED_SCRIPTS)
         app_instance = QApplication.instance()
         if app_instance is not None:
+            # noinspection PyUnresolvedReferences
             app_instance.setStyleSheet(qss())
         self._rebuild_ui()
 
@@ -3138,9 +3192,10 @@ class ToolBoxWindow(QMainWindow):
 
 qt_app = QApplication(sys.argv)
 
-# Initialize process model ID for full-size taskbar icons on Windows
+# Initialise process model ID for full-size taskbar icons on Windows
 if sys.platform == 'win32':
     try:
+        # noinspection PyUnresolvedReferences
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(f'CaptainBoots.PyToolBox-Launcher.{VERSION}')
         print(f"[Process] Successfully registered AppUserModelID: CaptainBoots.PyToolBox-Launcher.{VERSION}")
     except Exception as ex:
