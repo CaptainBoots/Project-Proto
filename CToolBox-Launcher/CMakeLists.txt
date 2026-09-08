@@ -1,19 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
-# 1. Dynamically read version from the Python PyToolBox-Launcher.py as single-source-of-truth
-set(LAUNCHER_VERSION "1.0.1") # Fallback default
-set(PY_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../PyToolBox-Launcher/PyToolBox-Launcher.py")
-
-if(EXISTS "${PY_FILE}")
-    file(READ "${PY_FILE}" PY_CONTENT)
-    if(PY_CONTENT MATCHES "VERSION\\s*=\\s*\"([^\"]+)\"")
-        set(LAUNCHER_VERSION "${CMAKE_MATCH_1}")
-        message(STATUS "Auto-detected PyToolBox-Launcher version: ${LAUNCHER_VERSION}")
-    elseif(PY_CONTENT MATCHES "VERSION\\s*=\\s*'([^']+)'")
-        set(LAUNCHER_VERSION "${CMAKE_MATCH_1}")
-        message(STATUS "Auto-detected PyToolBox-Launcher version: ${LAUNCHER_VERSION}")
-    endif()
-endif()
+# ==============================================================================
+# CToolBox-Launcher Version Configuration
+# Set the version string manually here (independent of the Python version)
+# ==============================================================================
+set(LAUNCHER_VERSION "1.1.0")
 
 project(CToolBox-Launcher VERSION ${LAUNCHER_VERSION} LANGUAGES CXX)
 
