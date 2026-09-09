@@ -26,7 +26,6 @@ private slots:
     void refreshScriptList();
     void removeScript(int idx);
     void addScript();
-    void openConsole();
 private:
     QLineEdit* m_pythonEntry;
     QLineEdit* m_toolsEntry;

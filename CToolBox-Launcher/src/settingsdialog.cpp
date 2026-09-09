@@ -259,14 +259,6 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent), m_themesOpen(
 
     navLayout->addStretch(1);
 
-    QPushButton* consoleBtn = new QPushButton("Console Log");
-    consoleBtn->setStyleSheet(ThemeManager::instance().subtleButtonQss());
-    consoleBtn->setFont(ThemeManager::instance().qtFont(9, true));
-    consoleBtn->setCursor(Qt::PointingHandCursor);
-    consoleBtn->setMinimumWidth(110);
-    connect(consoleBtn, &QPushButton::clicked, this, &SettingsDialog::openConsole);
-    navLayout->addWidget(consoleBtn);
-
     QPushButton* closeBtn = new QPushButton("Close");
     closeBtn->setStyleSheet(ThemeManager::instance().subtleButtonQss());
     closeBtn->setFont(ThemeManager::instance().qtFont(9, true));
@@ -525,12 +517,6 @@ void SettingsDialog::addScript() {
 
     grid->setColumnStretch(1, 1);
     addWin.exec();
-}
-
-void SettingsDialog::openConsole() {
-    ConsoleWindow* console = new ConsoleWindow(this);
-    console->setWindowModality(Qt::NonModal);
-    console->show();
 }
 
 // Intercept click on the themeHeader

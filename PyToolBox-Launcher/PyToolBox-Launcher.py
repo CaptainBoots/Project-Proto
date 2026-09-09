@@ -77,7 +77,7 @@ from PySide6.QtWidgets import (
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
 
 # ─── App metadata / runtime state ──────────────────────────────────────────
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 UPDATE_BRANCH = "main"           # Default selected update branch
 BETA_POPUP_SHOWN = False
 
@@ -720,10 +720,13 @@ class CircleToggle(QWidget):
 # (what to check, what to compare, when an update is "available") are 100%
 # unchanged from the original.
 
+import queue
+
+log_queue = queue.Queue()
+
 class ConsoleRedirector(object):
-    def __init__(self, original_stream, bridge_signal=None):
+    def __init__(self, original_stream):
         self.original_stream = original_stream
-        self.bridge_signal = bridge_signal
         self.buffer = []
 
     def write(self, text):
@@ -732,11 +735,9 @@ class ConsoleRedirector(object):
         self.buffer.append(text)
         if len(self.buffer) > 5000:
             self.buffer = self.buffer[-3000:]
-        if self.bridge_signal:
-            try:
-                self.bridge_signal.emit(text)
-            except Exception:
-                pass
+            
+        # Push log text into thread-safe queue for the background thread to handle
+        log_queue.put(text)
 
     def flush(self):
         if self.original_stream is not None:
@@ -744,6 +745,30 @@ class ConsoleRedirector(object):
 
     def get_logs(self):
         return "".join(self.buffer)
+
+
+def console_queue_processor():
+    while True:
+        try:
+            # Block until a log is available
+            text = log_queue.get()
+            texts = [text]
+            # Accumulate more logs from the queue if they arrive at the same time (prevents GUI stuttering)
+            while not log_queue.empty():
+                try:
+                    texts.append(log_queue.get_nowait())
+                except queue.Empty:
+                    break
+            combined_text = "".join(texts)
+            try:
+                bridge.console_log.emit(combined_text)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+# Start the background daemon thread to process the console log queue
+threading.Thread(target=console_queue_processor, daemon=True).start()
 
 
 class ConsoleWindow(QDialog):
@@ -2417,6 +2442,13 @@ HELP_PAGES = [
 ]
 
 
+def open_console():
+    console_win = ConsoleWindow(main_window)
+    console_win.setWindowModality(Qt.WindowModality.NonModal)
+    console_win.show()
+    main_window.console_dialogue = console_win
+
+
 def open_help():
     help_win = QDialog(main_window)
     help_win.setWindowTitle("Documentation & Guide")
@@ -2977,21 +3009,6 @@ def open_settings():
     nav_layout.addWidget(add_btn)
     nav_layout.addStretch(1)
 
-    def show_console():
-
-        settings_win.console_dialogue = ConsoleWindow(settings_win)
-
-        settings_win.console_dialogue.setWindowModality(Qt.NonModal)
-        settings_win.console_dialogue.show()
-
-    console_btn = QPushButton("Console Log")
-    console_btn.setStyleSheet(subtle_button_qss())
-    console_btn.setFont(qt_font(9, bold=True))
-    console_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    console_btn.setMinimumWidth(110)
-    console_btn.clicked.connect(show_console)
-    nav_layout.addWidget(console_btn)
-
     close_btn = QPushButton("Close")
     close_btn.setStyleSheet(subtle_button_qss())
     close_btn.setFont(qt_font(9, bold=True))
@@ -3110,6 +3127,9 @@ class ToolBoxWindow(QMainWindow):
         help_btn = square_button("?", open_help, base_size=28)
         footer_row.addWidget(help_btn)
         footer_row.addStretch(1)
+
+        console_btn = square_button("⌨", open_console, base_size=28)
+        footer_row.addWidget(console_btn)
 
         settings_btn = square_button("⚙", open_settings, base_size=28)
         footer_row.addWidget(settings_btn)

@@ -126,6 +126,13 @@ void MainWindow::buildRoot() {
     
     footerRow->addStretch(1);
 
+    QPushButton* consoleBtn = new QPushButton("⌨");
+    consoleBtn->setFixedSize(28, 28);
+    consoleBtn->setStyleSheet(ThemeManager::instance().subtleButtonQss() + "QPushButton { padding: 0; font-size: 12px; }");
+    consoleBtn->setCursor(Qt::PointingHandCursor);
+    connect(consoleBtn, &QPushButton::clicked, this, &MainWindow::openConsole);
+    footerRow->addWidget(consoleBtn);
+
     QPushButton* settingsBtn = new QPushButton("⚙");
     settingsBtn->setFixedSize(28, 28);
     settingsBtn->setStyleSheet(ThemeManager::instance().subtleButtonQss() + "QPushButton { padding: 0; font-size: 12px; }");
@@ -935,4 +942,10 @@ void MainWindow::patchLHMConfig() {
             ConsoleWindow::appendLog("[LHM] Configuration patched successfully (web server & minimised options enabled).\n");
         }
     }
+}
+
+void MainWindow::openConsole() {
+    ConsoleWindow* console = new ConsoleWindow(this);
+    console->setWindowModality(Qt::NonModal);
+    console->show();
 }

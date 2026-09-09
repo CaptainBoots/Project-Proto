@@ -26,6 +26,7 @@ private slots:
     void applyTheme(const QString& mode);
     void openHelp();
     void openSettings();
+    void openConsole();
     void launchTool(const QString& filename);
     
     void checkForUpdates();

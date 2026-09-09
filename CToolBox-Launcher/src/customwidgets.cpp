@@ -6,6 +6,60 @@
 #include <QHBoxLayout>
 #include <QApplication>
 #include <QClipboard>
+#include <mutex>
+#include <queue>
+#include <condition_variable>
+#include <thread>
+#include <vector>
+
+namespace {
+    struct ThreadSafeQueue {
+        std::queue<QString> queue;
+        std::mutex mutex;
+        std::condition_variable cv;
+        bool done = false;
+
+        void push(const QString& item) {
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                queue.push(item);
+            }
+            cv.notify_one();
+        }
+
+        std::vector<QString> popAll() {
+            std::unique_lock<std::mutex> lock(mutex);
+            cv.wait(lock, [this]() { return !queue.empty() || done; });
+            std::vector<QString> items;
+            while (!queue.empty()) {
+                items.push_back(queue.front());
+                queue.pop();
+            }
+            return items;
+        }
+    } s_logQueue;
+
+    std::thread s_logThread;
+    std::mutex s_bufferMutex;
+
+    void runLogThread() {
+        while (true) {
+            std::vector<QString> logs = s_logQueue.popAll();
+            if (logs.empty() && s_logQueue.done) {
+                break;
+            }
+
+            QString combined;
+            for (const QString& log : logs) {
+                combined.append(log);
+            }
+
+            QMetaObject::invokeMethod(qApp, [combined]() {
+                ConsoleWindow::appendLogFromThread(combined);
+            }, Qt::QueuedConnection);
+        }
+    }
+}
 
 // StripeBackground
 StripeBackground::StripeBackground(QWidget* parent) : QWidget(parent) {
@@ -169,6 +223,17 @@ ConsoleWindow::ConsoleWindow(QWidget* parent) : QDialog(parent) {
 }
 
 void ConsoleWindow::appendLog(const QString& text) {
+    static std::once_flag startFlag;
+    std::call_once(startFlag, []() {
+        s_logThread = std::thread(runLogThread);
+        s_logThread.detach();
+    });
+
+    s_logQueue.push(text);
+}
+
+void ConsoleWindow::appendLogFromThread(const QString& text) {
+    std::lock_guard<std::mutex> lock(s_bufferMutex);
     s_logBuffer.append(text);
     if (s_logBuffer.length() > 500000) {
         s_logBuffer = s_logBuffer.right(300000);
@@ -179,10 +244,12 @@ void ConsoleWindow::appendLog(const QString& text) {
 }
 
 QString ConsoleWindow::getLogs() {
+    std::lock_guard<std::mutex> lock(s_bufferMutex);
     return s_logBuffer;
 }
 
 void ConsoleWindow::clearLogs() {
+    std::lock_guard<std::mutex> lock(s_bufferMutex);
     s_logBuffer.clear();
     if (s_instance) {
         s_instance->updateLogs();
@@ -191,6 +258,7 @@ void ConsoleWindow::clearLogs() {
 
 void ConsoleWindow::updateLogs() {
     if (m_textArea) {
+        std::lock_guard<std::mutex> lock(s_bufferMutex);
         m_textArea->setPlainText(s_logBuffer);
         m_textArea->moveCursor(QTextCursor::End);
     }

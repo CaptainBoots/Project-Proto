@@ -47,6 +47,7 @@ class ConsoleWindow : public QDialog {
 public:
     explicit ConsoleWindow(QWidget* parent = nullptr);
     static void appendLog(const QString& text);
+    static void appendLogFromThread(const QString& text);
     static QString getLogs();
     static void clearLogs();
 public slots:
