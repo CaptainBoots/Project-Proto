@@ -120,6 +120,5 @@ jobs:
             PyToolBox-Launcher/dist/PyToolBox-Launcher.exe
             PyToolBox-Launcher/dist/PyToolBox-Uninstaller.exe
             CToolBox-Launcher-Portable.zip
-            dist_cpp/CToolBox-Uninstaller.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
