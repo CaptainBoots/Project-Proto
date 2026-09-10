@@ -105,35 +105,13 @@ def show_crash_console(app_name, error_text):
         except Exception:
             print(f"CRASH LOGS:\n{error_text}", file=sys.stderr)
 
-# Supervisor Check
-if "--run-core" not in sys.argv:
-    import os
-    if getattr(sys, 'frozen', False):
-        cmd = [sys.executable, "--run-core"] + sys.argv[1:]
-    else:
-        cmd = [sys.executable, sys.argv[0], "--run-core"] + sys.argv[1:]
-        
-    try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        )
-        stdout_data, stderr_data = process.communicate()
-        exit_code = process.returncode
-        
-        if exit_code != 0:
-            show_crash_console("PyToolBox-Launcher", stdout_data + "\n" + stderr_data)
-            sys.exit(exit_code)
-        else:
-            sys.exit(0)
-    except Exception as e:
-        show_crash_console("PyToolBox-Launcher", f"Failed to start supervisor child process:\n{e}")
-        sys.exit(1)
-else:
-    sys.argv.remove("--run-core")
+def my_excepthook(etype, value, tb):
+    import traceback
+    err_text = "".join(traceback.format_exception(etype, value, tb))
+    show_crash_console("PyToolBox-Launcher", err_text)
+    sys.exit(1)
+
+sys.excepthook = my_excepthook
 
 import importlib
 import io
@@ -202,7 +180,7 @@ from PySide6.QtWidgets import (
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
 
 # ─── App metadata / runtime state ──────────────────────────────────────────
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 UPDATE_BRANCH = "main"           # Default selected update branch
 BETA_POPUP_SHOWN = False
 
@@ -333,99 +311,46 @@ def _cache_tool_label(filename: str, label: str):
 
 def discover_managed_scripts() -> list[dict]:
     """Dynamically auto-detects all tools inside the Nova-Tools folder and GitHub.
-
-    Looks for subdirectories containing 'main.py'. Parsed tool names are extracted
-    from the 'NAME' variable, and unique 6-digit IDs are parsed from 'TOOL_ID'.
+    Prepopulates core tools to avoid blocking network calls on startup.
     """
+    # Predefined Core Tools
+    detected = [
+        {"filename": "LibreHardwareMonitor/LibreHardwareMonitor.exe", "label": "Libre Hardware Monitor", "id": "999801"},
+        {"filename": "OSC-Chatbox/main.py", "label": "OSC Chatbox", "id": "000101"},
+        {"filename": "OSC-FaceTrackingController/main.py", "label": "OSC Face Tracking Controller", "id": "000102"},
+        {"filename": "OSC-Gamepad/main.py", "label": "OSC Gamepad", "id": "000103"},
+        {"filename": "OSC-ParameterBrowser/main.py", "label": "OSC Parameter Browser", "id": "000104"},
+        {"filename": "OSC-Router/main.py", "label": "OSC Router", "id": "000105"},
+        {"filename": "OSC-ScriptMaker/main.py", "label": "OSC Script Maker", "id": "000106"},
+        {"filename": "VRChat-Launcher/main.py", "label": "VRChat Launcher", "id": "000107"},
+        {"filename": "VRChat-LocalFavorites/main.py", "label": "VRChat Local Favorites", "id": "000108"},
+        {"filename": "VRChat-SocialLogger/main.py", "label": "VRChat Social Logger", "id": "000109"}
+    ]
 
-    # 1. Always include LibreHardwareMonitor as a static default helper tool
-    detected = [{
-        "filename": "LibreHardwareMonitor/LibreHardwareMonitor.exe",
-        "label": "Libre Hardware Monitor",
-        "id": "999801"
-    }]
+    seen_folders = {"LibreHardwareMonitor", "OSC-Chatbox", "OSC-FaceTrackingController", "OSC-Gamepad", "OSC-ParameterBrowser", "OSC-Router", "OSC-ScriptMaker", "VRChat-Launcher", "VRChat-LocalFavorites", "VRChat-SocialLogger"}
+    core_filenames = {s["filename"] for s in detected}
 
-    # Keep track of folders we have already discovered
-    seen_folders = set()
-    local_tools_by_id = {}
-
-    # 2. Local Discovery: Scan the local TOOLS_ROOT_DIR subfolders
+    # Local Discovery: Scan the local TOOLS_ROOT_DIR subfolders for custom tools
     if os.path.isdir(TOOLS_ROOT_DIR):
         try:
             for item in os.listdir(TOOLS_ROOT_DIR):
                 folder_path = os.path.join(TOOLS_ROOT_DIR, item)
-                if os.path.isdir(folder_path) and item != "LibreHardwareMonitor" and item != "configs" and item != "ToolBox Backup":
+                if os.path.isdir(folder_path) and item not in ("LibreHardwareMonitor", "configs", "ToolBox Backup"):
                     main_py_path = os.path.join(folder_path, "main.py")
                     if os.path.isfile(main_py_path):
-                        # Read and parse NAME and TOOL_ID
-                        try:
-                            with open(main_py_path, "r", encoding="utf-8", errors="ignore") as f:
-                                content = f.read()
-                        except Exception:
-                            content = ""
-                        
-                        label = _extract_name_from_source(content) or item
-                        tool_id = _extract_id_from_source(content) or "000000"
                         filename = f"{item}/main.py"
-                        
-                        tool_entry = {"filename": filename, "label": label, "id": tool_id}
-                        detected.append(tool_entry)
-                        seen_folders.add(item)
-                        if tool_id != "000000":
-                            local_tools_by_id[tool_id] = tool_entry
+                        if filename not in core_filenames:
+                            try:
+                                with open(main_py_path, "r", encoding="utf-8", errors="ignore") as f:
+                                    content = f.read()
+                            except Exception:
+                                content = ""
+
+                            label = _extract_name_from_source(content) or item
+                            tool_id = _extract_id_from_source(content) or "000000"
+                            detected.append({"filename": filename, "label": label, "id": tool_id})
         except Exception as e:
             print(f"[Discovery] Local tools scan failed: {e}")
-
-    # 3. Remote Discovery: Find missing folders that have main.py on GitHub and handle renames
-    paths = get_repo_tree()
-    if paths:
-        for p in paths:
-            # We look for paths like '<FolderName>/main.py'
-            parts = p.split("/")
-            if len(parts) == 2 and parts[1] == "main.py":
-                folder_name = parts[0]
-                if folder_name != "LibreHardwareMonitor":
-                    filename = f"{folder_name}/main.py"
-                    
-                    # Fetch raw main.py content and parse NAME and TOOL_ID
-                    remote_text, _, _ = _fetch_remote_script(f"{get_github_base_url()}{filename}", timeout=5)
-                    remote_text = remote_text or ""
-                    
-                    remote_id = _extract_id_from_source(remote_text) or "000000"
-                    remote_label = _extract_name_from_source(remote_text) or folder_name
-
-                    # SELF-HEALING RENAME CHECK:
-                    # If this remote ID matches an already discovered local tool, but the folder name has changed!
-                    if remote_id != "000000" and remote_id in local_tools_by_id:
-                        local_entry = local_tools_by_id[remote_id]
-                        old_filename = local_entry["filename"]
-                        if old_filename != filename:
-                            # Folder renamed on GitHub! Let's rename locally
-                            old_folder = old_filename.split("/")[0]
-                            old_folder_path = os.path.join(TOOLS_ROOT_DIR, old_folder)
-                            new_folder_path = os.path.join(TOOLS_ROOT_DIR, folder_name)
-                            if os.path.isdir(old_folder_path):
-                                try:
-                                    if os.path.isdir(new_folder_path):
-                                        shutil.rmtree(new_folder_path, ignore_errors=True)
-                                    os.rename(old_folder_path, new_folder_path)
-                                    print(f"[Self-Healing] Renamed local directory '{old_folder}' -> '{folder_name}' to match remote rename!")
-
-                                except Exception as ex:
-                                    print(f"[Self-Healing] Failed to rename directory: {ex}")
-                            
-                            # Update local entry with the new folder path
-                            local_entry["filename"] = filename
-                            local_entry["label"] = remote_label
-                            seen_folders.add(folder_name)
-                            if old_folder in seen_folders:
-                                seen_folders.remove(old_folder)
-                    else:
-                        # Standard discovery of a new tool
-                        if folder_name not in seen_folders:
-                            _cache_tool_label(filename, remote_label)
-                            detected.append({"filename": filename, "label": remote_label, "id": remote_id})
-                            seen_folders.add(folder_name)
 
     return detected
 

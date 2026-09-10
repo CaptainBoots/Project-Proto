@@ -27,7 +27,7 @@
 #include <shellapi.h>
 #endif
 
-MainWindow::MainWindow() : m_treeFetched(false) {
+MainWindow::MainWindow() : m_treeFetched(false), m_treeFetchInProgress(false) {
     m_networkManager = new QNetworkAccessManager(this);
     
     ConfigManager::instance().load();
@@ -141,6 +141,17 @@ void MainWindow::buildRoot() {
     footerRow->addWidget(settingsBtn);
 
     footerOuter->addLayout(footerRow);
+
+    m_downloadProgressBar = new QProgressBar();
+    m_downloadProgressBar->setTextVisible(false);
+    m_downloadProgressBar->setFixedHeight(4);
+    m_downloadProgressBar->setStyleSheet(
+        QString("QProgressBar { background-color: %1; border: none; border-radius: 2px; margin: 2px 24px; }"
+                "QProgressBar::chunk { background-color: %2; border-radius: 2px; }")
+        .arg(p.border, p.accent)
+    );
+    m_downloadProgressBar->setVisible(false);
+    footerOuter->addWidget(m_downloadProgressBar);
 
     m_footerLabel = new QLabel("Checking for updates on startup...");
     m_footerLabel->setAlignment(Qt::AlignCenter);
@@ -281,103 +292,115 @@ void MainWindow::runDetached(const QString& filename) {
 }
 
 void MainWindow::syncTool(const QString& filename, ToolState targetState) {
-    if (!m_treeFetched) {
-        fetchRepoTree();
-        // Retry syncing in a short moment once tree is loaded
-        QTimer::singleShot(1000, this, [this, filename, targetState]() {
-            syncTool(filename, targetState);
-        });
-        return;
-    }
-
-    QString folderName = filename.split("/")[0];
-    QString prefix = folderName + "/";
-
-    QStringList filesToSync;
-    for (const QString& path : m_gitTreePaths) {
-        if (path.startsWith(prefix, Qt::CaseInsensitive)) {
-            filesToSync.append(path);
-        }
-    }
-
-    if (filesToSync.isEmpty()) {
-        m_footerLabel->setText("Error: no files discovered in repo tree for " + filename);
-        return;
-    }
-
     setEnabled(false);
-    
-    auto context = std::make_shared<SyncContext>();
-    context->files = filesToSync;
-    context->filename = filename;
+    m_downloadProgressBar->setRange(0, 100);
+    m_downloadProgressBar->setValue(0);
+    m_downloadProgressBar->setVisible(true);
+    m_footerLabel->setText("Downloading tools archive...");
 
-    downloadNextFile(context);
-}
+    QString branch = ConfigManager::instance().updateBranch();
+    QString url = "https://github.com/CaptainBoots/Nova-Tools/archive/refs/heads/" + branch + ".zip";
 
-void MainWindow::downloadNextFile(std::shared_ptr<SyncContext> context) {
-    if (context->currentFileIndex >= context->files.size()) {
-        // Done downloading all files for this tool!
-        // Read main.py to extract and cache the real tool NAME
-        QString localMainPy = QDir(ConfigManager::instance().toolsRootDir()).filePath(context->filename);
-        QFile file(localMainPy);
-        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QTextStream in(&file);
-            QString content = in.readAll();
-            file.close();
+    QNetworkRequest request((QUrl(url)));
+    request.setHeader(QNetworkRequest::UserAgentHeader, "CToolBox-Launcher-Cpp");
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
-            QRegularExpression re("NAME\\s*=\\s*['\"]([^'\"]+)['\"]");
-            QRegularExpressionMatch match = re.match(content);
-            if (match.hasMatch()) {
-                QString realName = match.captured(1);
-                
-                // Update label in managed scripts
-                QVector<ManagedScript> scripts = ConfigManager::instance().managedScripts();
-                for (int i = 0; i < scripts.size(); ++i) {
-                    if (scripts[i].filename == context->filename) {
-                        scripts[i].label = realName;
-                        break;
-                    }
-                }
-                ConfigManager::instance().setManagedScripts(scripts);
-                
-                // Cache the label
-                ConfigManager::instance().setCachedLabel(context->filename, realName);
-                ConfigManager::instance().save();
-                
-                refreshMainButtons();
-            }
+    QNetworkReply* reply = m_networkManager->get(request);
+
+    connect(reply, &QNetworkReply::downloadProgress, this, [this](qint64 bytesReceived, qint64 bytesTotal) {
+        if (bytesTotal > 0) {
+            int percentage = static_cast<int>((bytesReceived * 100) / bytesTotal);
+            m_downloadProgressBar->setValue(percentage);
         }
+    });
 
-        setEnabled(true);
-        m_toolStates[context->filename] = ToolState::Current;
-        m_footerLabel->setText("Ready");
-        refreshButtonLabels();
-        runDetached(context->filename);
-        return;
-    }
-
-    QString relPath = context->files[context->currentFileIndex];
-    QString localDest = QDir(ConfigManager::instance().toolsRootDir()).filePath(relPath);
-    QDir().mkpath(QFileInfo(localDest).absolutePath());
-
-    QString url = QString("https://raw.githubusercontent.com/CaptainBoots/Nova-Tools/%1/%2")
-                  .arg(ConfigManager::instance().updateBranch(), relPath);
-
-    QNetworkReply* reply = m_networkManager->get(QNetworkRequest(QUrl(url)));
-    connect(reply, &QNetworkReply::finished, this, [this, context, reply, localDest, relPath]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, filename]() {
+        m_downloadProgressBar->setValue(100);
         if (reply->error() == QNetworkReply::NoError) {
-            QFile file(localDest);
+            m_footerLabel->setText("Extracting tools...");
+            QString toolsRoot = ConfigManager::instance().toolsRootDir();
+            QString zipPath = QDir(toolsRoot).filePath("temp_tools.zip");
+
+            QFile file(zipPath);
             if (file.open(QIODevice::WriteOnly)) {
                 file.write(reply->readAll());
                 file.close();
-                ConsoleWindow::appendLog("[Sync] Downloaded: " + relPath + "\n");
+
+                // Extract ZIP using PowerShell (robust & zero dependency on Windows!)
+                QString branch = ConfigManager::instance().updateBranch();
+                QString tempDir = QDir(toolsRoot).filePath("temp_extract");
+                QDir().mkpath(tempDir);
+
+                #ifdef Q_OS_WIN
+                QString cmd = QString(
+                    "Expand-Archive -Path '%1' -DestinationPath '%2' -Force; "
+                    "Copy-Item -Path '%2\\Nova-Tools-%3\\*' -Destination '%4' -Recurse -Force; "
+                    "Remove-Item -Path '%2' -Recurse -Force; "
+                    "Remove-Item -Path '%1' -Force"
+                ).arg(QDir::toNativeSeparators(zipPath), QDir::toNativeSeparators(tempDir), branch, QDir::toNativeSeparators(toolsRoot));
+
+                int exitCode = QProcess::execute("powershell", {"-NoProfile", "-Command", cmd});
+                if (exitCode == 0) {
+                    ConsoleWindow::appendLog("[Sync] Successfully extracted and updated tools archive.\n");
+                    
+                    // Read main.py of this specific tool to extract and cache the real tool NAME
+                    QString localMainPy = QDir(ConfigManager::instance().toolsRootDir()).filePath(filename);
+                    QFile mainFile(localMainPy);
+                    if (mainFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                        QTextStream in(&mainFile);
+                        QString content = in.readAll();
+                        mainFile.close();
+
+                        QRegularExpression re("NAME\\s*=\\s*['\"]([^'\"]+)['\"]");
+                        QRegularExpressionMatch match = re.match(content);
+                        if (match.hasMatch()) {
+                            QString realName = match.captured(1);
+                            
+                            // Update label in managed scripts
+                            QVector<ManagedScript> scripts = ConfigManager::instance().managedScripts();
+                            for (int i = 0; i < scripts.size(); ++i) {
+                                if (scripts[i].filename == filename) {
+                                    scripts[i].label = realName;
+                                    break;
+                                }
+                            }
+                            ConfigManager::instance().setManagedScripts(scripts);
+                            ConfigManager::instance().setCachedLabel(filename, realName);
+                            ConfigManager::instance().save();
+                            
+                            refreshMainButtons();
+                        }
+                    }
+
+                    m_downloadProgressBar->setVisible(false);
+                    setEnabled(true);
+                    m_toolStates[filename] = ToolState::Current;
+                    m_footerLabel->setText("Ready");
+                    refreshButtonLabels();
+                    runDetached(filename);
+                } else {
+                    m_footerLabel->setText("Extraction failed");
+                    QMessageBox::critical(this, "Sync Error", "Failed to extract tools archive.");
+                    m_downloadProgressBar->setVisible(false);
+                    setEnabled(true);
+                }
+                #else
+                m_downloadProgressBar->setVisible(false);
+                setEnabled(true);
+                #endif
+            } else {
+                m_footerLabel->setText("Extraction failed");
+                QMessageBox::critical(this, "Sync Error", "Failed to open ZIP archive for writing.");
+                m_downloadProgressBar->setVisible(false);
+                setEnabled(true);
             }
         } else {
-            ConsoleWindow::appendLog("[Sync Error] Failed to download: " + relPath + "\n");
+            m_footerLabel->setText("Download failed");
+            QMessageBox::critical(this, "Sync Error", "Failed to download tools archive: " + reply->errorString());
+            m_downloadProgressBar->setVisible(false);
+            setEnabled(true);
         }
         reply->deleteLater();
-        context->currentFileIndex++;
-        downloadNextFile(context);
     });
 }
 
@@ -546,6 +569,9 @@ void MainWindow::startAutoUpdate(const QString& remoteVer) {
 }
 
 void MainWindow::fetchRepoTree() {
+    if (m_treeFetched || m_treeFetchInProgress) return;
+    m_treeFetchInProgress = true;
+
     QString branch = ConfigManager::instance().updateBranch();
     QString url = "https://api.github.com/repos/CaptainBoots/Nova-Tools/git/trees/" + branch + "?recursive=1";
 
@@ -555,6 +581,7 @@ void MainWindow::fetchRepoTree() {
 
     QNetworkReply* reply = m_networkManager->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        m_treeFetchInProgress = false;
         if (reply->error() == QNetworkReply::NoError) {
             QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             if (doc.isObject()) {
@@ -664,7 +691,11 @@ void MainWindow::scanNextTool(std::shared_ptr<ScanContext> context) {
     QString branch = ConfigManager::instance().updateBranch();
     QString url = "https://raw.githubusercontent.com/CaptainBoots/Nova-Tools/" + branch + "/" + s.filename;
 
-    QNetworkReply* reply = m_networkManager->get(QNetworkRequest(QUrl(url)));
+    QNetworkRequest request((QUrl(url)));
+    request.setHeader(QNetworkRequest::UserAgentHeader, "CToolBox-Launcher-Cpp");
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+
+    QNetworkReply* reply = m_networkManager->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, context, reply, s]() {
         if (reply->error() == QNetworkReply::NoError) {
             QString remoteContent = reply->readAll();

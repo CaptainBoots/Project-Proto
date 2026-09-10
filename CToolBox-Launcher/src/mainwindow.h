@@ -7,6 +7,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QMap>
+#include <QProgressBar>
 #include <memory>
 #include "configmanager.h"
 
@@ -45,24 +46,18 @@ private:
     void runDetached(const QString& filename);
     void startAutoUpdate(const QString& remoteVer);
 
-    struct SyncContext {
-        int currentFileIndex = 0;
-        QStringList files;
-        QString filename;
-    };
-
     struct ScanContext {
         int currentIdx = 0;
         QVector<ManagedScript> scripts;
     };
 
-    void downloadNextFile(std::shared_ptr<SyncContext> context);
     void scanNextTool(std::shared_ptr<ScanContext> context);
     
     QNetworkAccessManager* m_networkManager;
     QScrollArea* m_buttonsScroll;
     QVBoxLayout* m_buttonsLayout;
     QLabel* m_footerLabel;
+    QProgressBar* m_downloadProgressBar;
     
     QMap<QString, ToolState> m_toolStates;
     QMap<QString, QString> m_remoteVersions;
@@ -70,4 +65,5 @@ private:
     
     QStringList m_gitTreePaths;
     bool m_treeFetched;
+    bool m_treeFetchInProgress;
 };

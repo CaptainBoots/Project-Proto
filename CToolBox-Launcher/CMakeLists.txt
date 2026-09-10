@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
 # CToolBox-Launcher Version Configuration
 # Set the version string manually here (independent of the Python version)
 # ==============================================================================
-set(LAUNCHER_VERSION "1.1.2")
+set(LAUNCHER_VERSION "1.1.3")
 
 project(CToolBox-Launcher VERSION ${LAUNCHER_VERSION} LANGUAGES CXX)
 
