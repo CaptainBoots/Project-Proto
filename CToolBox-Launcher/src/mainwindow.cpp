@@ -307,89 +307,78 @@ void MainWindow::syncTool(const QString& filename, ToolState targetState) {
 
     setEnabled(false);
     
-    // Download files sequentially using recursion
-    struct SyncContext {
-        int currentFileIndex = 0;
-        QStringList files;
-        MainWindow* self;
-        QString filename;
-    };
-
     auto context = std::make_shared<SyncContext>();
     context->files = filesToSync;
-    context->self = this;
     context->filename = filename;
 
-    // Recursive lambda for downloading files
-    auto downloadNext = std::make_shared<std::function<void()>>();
-    *downloadNext = [context, downloadNext]() {
-        if (context->currentFileIndex >= context->files.size()) {
-            // Done downloading all files for this tool!
-            // Read main.py to extract and cache the real tool NAME
-            QString localMainPy = QDir(ConfigManager::instance().toolsRootDir()).filePath(context->filename);
-            QFile file(localMainPy);
-            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QTextStream in(&file);
-                QString content = in.readAll();
-                file.close();
+    downloadNextFile(context);
+}
 
-                QRegularExpression re("NAME\\s*=\\s*['\"]([^'\"]+)['\"]");
-                QRegularExpressionMatch match = re.match(content);
-                if (match.hasMatch()) {
-                    QString realName = match.captured(1);
-                    
-                    // Update label in managed scripts
-                    QVector<ManagedScript> scripts = ConfigManager::instance().managedScripts();
-                    for (int i = 0; i < scripts.size(); ++i) {
-                        if (scripts[i].filename == context->filename) {
-                            scripts[i].label = realName;
-                            break;
-                        }
+void MainWindow::downloadNextFile(std::shared_ptr<SyncContext> context) {
+    if (context->currentFileIndex >= context->files.size()) {
+        // Done downloading all files for this tool!
+        // Read main.py to extract and cache the real tool NAME
+        QString localMainPy = QDir(ConfigManager::instance().toolsRootDir()).filePath(context->filename);
+        QFile file(localMainPy);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            QString content = in.readAll();
+            file.close();
+
+            QRegularExpression re("NAME\\s*=\\s*['\"]([^'\"]+)['\"]");
+            QRegularExpressionMatch match = re.match(content);
+            if (match.hasMatch()) {
+                QString realName = match.captured(1);
+                
+                // Update label in managed scripts
+                QVector<ManagedScript> scripts = ConfigManager::instance().managedScripts();
+                for (int i = 0; i < scripts.size(); ++i) {
+                    if (scripts[i].filename == context->filename) {
+                        scripts[i].label = realName;
+                        break;
                     }
-                    ConfigManager::instance().setManagedScripts(scripts);
-                    
-                    // Cache the label
-                    ConfigManager::instance().setCachedLabel(context->filename, realName);
-                    ConfigManager::instance().save();
-                    
-                    context->self->refreshMainButtons();
                 }
+                ConfigManager::instance().setManagedScripts(scripts);
+                
+                // Cache the label
+                ConfigManager::instance().setCachedLabel(context->filename, realName);
+                ConfigManager::instance().save();
+                
+                refreshMainButtons();
             }
-
-            context->self->setEnabled(true);
-            context->self->m_toolStates[context->filename] = ToolState::Current;
-            context->self->m_footerLabel->setText("Ready");
-            context->self->refreshButtonLabels();
-            context->self->runDetached(context->filename);
-            return;
         }
 
-        QString relPath = context->files[context->currentFileIndex];
-        QString localDest = QDir(ConfigManager::instance().toolsRootDir()).filePath(relPath);
-        QDir().mkpath(QFileInfo(localDest).absolutePath());
+        setEnabled(true);
+        m_toolStates[context->filename] = ToolState::Current;
+        m_footerLabel->setText("Ready");
+        refreshButtonLabels();
+        runDetached(context->filename);
+        return;
+    }
 
-        QString url = QString("https://raw.githubusercontent.com/CaptainBoots/Nova-Tools/%1/%2")
-                      .arg(ConfigManager::instance().updateBranch(), relPath);
+    QString relPath = context->files[context->currentFileIndex];
+    QString localDest = QDir(ConfigManager::instance().toolsRootDir()).filePath(relPath);
+    QDir().mkpath(QFileInfo(localDest).absolutePath());
 
-        QNetworkReply* reply = context->self->m_networkManager->get(QNetworkRequest(QUrl(url)));
-        connect(reply, &QNetworkReply::finished, context->self, [context, reply, localDest, relPath, downloadNext]() {
-            if (reply->error() == QNetworkReply::NoError) {
-                QFile file(localDest);
-                if (file.open(QIODevice::WriteOnly)) {
-                    file.write(reply->readAll());
-                    file.close();
-                    ConsoleWindow::appendLog("[Sync] Downloaded: " + relPath + "\n");
-                }
-            } else {
-                ConsoleWindow::appendLog("[Sync Error] Failed to download: " + relPath + "\n");
+    QString url = QString("https://raw.githubusercontent.com/CaptainBoots/Nova-Tools/%1/%2")
+                  .arg(ConfigManager::instance().updateBranch(), relPath);
+
+    QNetworkReply* reply = m_networkManager->get(QNetworkRequest(QUrl(url)));
+    connect(reply, &QNetworkReply::finished, this, [this, context, reply, localDest, relPath]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QFile file(localDest);
+            if (file.open(QIODevice::WriteOnly)) {
+                file.write(reply->readAll());
+                file.close();
+                ConsoleWindow::appendLog("[Sync] Downloaded: " + relPath + "\n");
             }
-            reply->deleteLater();
-            context->currentFileIndex++;
-            (*downloadNext)();
-        });
-    };
-
-    (*downloadNext)();
+        } else {
+            ConsoleWindow::appendLog("[Sync Error] Failed to download: " + relPath + "\n");
+        }
+        reply->deleteLater();
+        context->currentFileIndex++;
+        downloadNextFile(context);
+    });
 }
 
 void MainWindow::checkForUpdates() {
@@ -643,154 +632,146 @@ void MainWindow::scanToolsVersions() {
     if (!m_treeFetched) return;
 
     QVector<ManagedScript> scripts = ConfigManager::instance().managedScripts();
-    
-    struct ScanContext {
-        int currentIdx = 0;
-        QVector<ManagedScript> scripts;
-        MainWindow* self;
-    };
 
     auto context = std::make_shared<ScanContext>();
     context->scripts = scripts;
-    context->self = this;
 
-    auto scanNext = std::make_shared<std::function<void()>>();
-    *scanNext = [context, scanNext]() {
-        if (context->currentIdx >= context->scripts.size()) {
-            context->self->refreshButtonLabels();
-            return;
-        }
+    scanNextTool(context);
+}
 
-        ManagedScript s = context->scripts[context->currentIdx];
-        if (s.filename.endsWith(".exe") || s.custom) {
-            context->currentIdx++;
-            (*scanNext)();
-            return;
-        }
+void MainWindow::scanNextTool(std::shared_ptr<ScanContext> context) {
+    if (context->currentIdx >= context->scripts.size()) {
+        refreshButtonLabels();
+        return;
+    }
 
-        QString localPath = QDir(ConfigManager::instance().toolsRootDir()).filePath(s.filename);
-        if (!QFile::exists(localPath)) {
-            context->self->m_toolStates[s.filename] = ToolState::Missing;
-            context->currentIdx++;
-            (*scanNext)();
-            return;
-        }
+    ManagedScript s = context->scripts[context->currentIdx];
+    if (s.filename.endsWith(".exe") || s.custom) {
+        context->currentIdx++;
+        scanNextTool(context);
+        return;
+    }
 
-        // Fetch remote script version
-        QString branch = ConfigManager::instance().updateBranch();
-        QString url = "https://raw.githubusercontent.com/CaptainBoots/Nova-Tools/" + branch + "/" + s.filename;
+    QString localPath = QDir(ConfigManager::instance().toolsRootDir()).filePath(s.filename);
+    if (!QFile::exists(localPath)) {
+        m_toolStates[s.filename] = ToolState::Missing;
+        context->currentIdx++;
+        scanNextTool(context);
+        return;
+    }
 
-        QNetworkReply* reply = context->self->m_networkManager->get(QNetworkRequest(QUrl(url)));
-        connect(reply, &QNetworkReply::finished, context->self, [context, reply, s, scanNext]() {
-            if (reply->error() == QNetworkReply::NoError) {
-                QString remoteContent = reply->readAll();
-                
-                // Extract remote TOOL_ID or ID
-                QString remoteId = "000000";
-                QRegularExpression reId("(TOOL_ID|ID)\\s*=\\s*['\"]([^'\"]+)['\"]");
-                QRegularExpressionMatch matchId = reId.match(remoteContent);
-                if (matchId.hasMatch()) {
-                    remoteId = matchId.captured(2);
-                } else {
-                    QRegularExpression reIdNum("(TOOL_ID|ID)\\s*=\\s*(\\d+)");
-                    QRegularExpressionMatch matchIdNum = reIdNum.match(remoteContent);
-                    if (matchIdNum.hasMatch()) {
-                        remoteId = matchIdNum.captured(2);
-                    }
-                }
-                remoteId = QString("%1").arg(remoteId.toInt(), 6, 10, QChar('0'));
+    // Fetch remote script version
+    QString branch = ConfigManager::instance().updateBranch();
+    QString url = "https://raw.githubusercontent.com/CaptainBoots/Nova-Tools/" + branch + "/" + s.filename;
 
-                // SELF-HEALING RENAME CHECK:
-                // Check if this remote ID matches an already discovered local tool, but the folder name has changed!
-                if (remoteId != "000000") {
-                    QVector<ManagedScript> currentScripts = ConfigManager::instance().managedScripts();
-                    bool renamed = false;
-                    for (int idx = 0; idx < currentScripts.size(); ++idx) {
-                        ManagedScript& localScript = currentScripts[idx];
-                        if (localScript.id == remoteId && localScript.filename != s.filename) {
-                            // Folder renamed on GitHub!
-                            QString oldFolder = localScript.filename.split("/")[0];
-                            QString newFolder = s.filename.split("/")[0];
-                            
-                            QDir toolsDir(ConfigManager::instance().toolsRootDir());
-                            QString oldPath = toolsDir.filePath(oldFolder);
-                            QString newPath = toolsDir.filePath(newFolder);
-                            
-                            if (QDir(oldPath).exists()) {
-                                if (QDir(newPath).exists()) {
-                                    QDir(newPath).removeRecursively();
-                                }
-                                if (QDir().rename(oldPath, newPath)) {
-                                    ConsoleWindow::appendLog(QString("[Self-Healing] Renamed local folder from '%1' to '%2'\n").arg(oldFolder).arg(newFolder));
-                                }
-                            }
-                            
-                            // Update the local script info in memory
-                            localScript.filename = s.filename;
-                            
-                            // Extract pretty remote name if present
-                            QRegularExpression reName("NAME\\s*=\\s*['\"]([^'\"]+)['\"]");
-                            QRegularExpressionMatch matchName = reName.match(remoteContent);
-                            if (matchName.hasMatch()) {
-                                localScript.label = matchName.captured(1);
-                            }
-                            
-                            renamed = true;
-                        }
-                    }
-                    
-                    if (renamed) {
-                        ConfigManager::instance().setManagedScripts(currentScripts);
-                        ConfigManager::instance().save();
-                        // Rebuild main window buttons to match renames
-                        QMetaObject::invokeMethod(context->self, "refreshMainButtons", Qt::QueuedConnection);
-                    }
-                }
-
-                QRegularExpression re("VERSION\\s*=\\s*['\"]([^'\"]+)['\"]");
-                QRegularExpressionMatch match = re.match(remoteContent);
-                if (match.hasMatch()) {
-                    QString remoteVer = match.captured(1);
-                    
-                    // Read local version
-                    QString localPath = QDir(ConfigManager::instance().toolsRootDir()).filePath(s.filename);
-                    QFile file(localPath);
-                    QString localVer = "0.0.0";
-                    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                        QTextStream in(&file);
-                        QString localContent = in.readAll();
-                        file.close();
-                        QRegularExpressionMatch localMatch = re.match(localContent);
-                        if (localMatch.hasMatch()) {
-                            localVer = localMatch.captured(1);
-                        }
-                    }
-
-                    // Compare versions
-                    QStringList localParts = localVer.split(".");
-                    QStringList remoteParts = remoteVer.split(".");
-                    bool newer = false;
-                    for (int i = 0; i < qMin(localParts.size(), remoteParts.size()); ++i) {
-                        int l = localParts[i].toInt();
-                        int r = remoteParts[i].toInt();
-                        if (r > l) {
-                            newer = true;
-                            break;
-                        } else if (l > r) {
-                            break;
-                        }
-                    }
-
-                    context->self->m_toolStates[s.filename] = newer ? ToolState::Update : ToolState::Current;
+    QNetworkReply* reply = m_networkManager->get(QNetworkRequest(QUrl(url)));
+    connect(reply, &QNetworkReply::finished, this, [this, context, reply, s]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QString remoteContent = reply->readAll();
+            
+            // Extract remote TOOL_ID or ID
+            QString remoteId = "000000";
+            QRegularExpression reId("(TOOL_ID|ID)\\s*=\\s*['\"]([^'\"]+)['\"]");
+            QRegularExpressionMatch matchId = reId.match(remoteContent);
+            if (matchId.hasMatch()) {
+                remoteId = matchId.captured(2);
+            } else {
+                QRegularExpression reIdNum("(TOOL_ID|ID)\\s*=\\s*(\\d+)");
+                QRegularExpressionMatch matchIdNum = reIdNum.match(remoteContent);
+                if (matchIdNum.hasMatch()) {
+                    remoteId = matchIdNum.captured(2);
                 }
             }
-            reply->deleteLater();
-            context->currentIdx++;
-            (*scanNext)();
-        });
-    };
+            remoteId = QString("%1").arg(remoteId.toInt(), 6, 10, QChar('0'));
 
-    (*scanNext)();
+            // SELF-HEALING RENAME CHECK:
+            // Check if this remote ID matches an already discovered local tool, but the folder name has changed!
+            if (remoteId != "000000") {
+                QVector<ManagedScript> currentScripts = ConfigManager::instance().managedScripts();
+                bool renamed = false;
+                for (int idx = 0; idx < currentScripts.size(); ++idx) {
+                    ManagedScript& localScript = currentScripts[idx];
+                    if (localScript.id == remoteId && localScript.filename != s.filename) {
+                        // Folder renamed on GitHub!
+                        QString oldFolder = localScript.filename.split("/")[0];
+                        QString newFolder = s.filename.split("/")[0];
+                        
+                        QDir toolsDir(ConfigManager::instance().toolsRootDir());
+                        QString oldPath = toolsDir.filePath(oldFolder);
+                        QString newPath = toolsDir.filePath(newFolder);
+                        
+                        if (QDir(oldPath).exists()) {
+                            if (QDir(newPath).exists()) {
+                                QDir(newPath).removeRecursively();
+                            }
+                            if (QDir().rename(oldPath, newPath)) {
+                                ConsoleWindow::appendLog(QString("[Self-Healing] Renamed local folder from '%1' to '%2'\n").arg(oldFolder).arg(newFolder));
+                            }
+                        }
+                        
+                        // Update the local script info in memory
+                        localScript.filename = s.filename;
+                        
+                        // Extract pretty remote name if present
+                        QRegularExpression reName("NAME\\s*=\\s*['\"]([^'\"]+)['\"]");
+                        QRegularExpressionMatch matchName = reName.match(remoteContent);
+                        if (matchName.hasMatch()) {
+                            localScript.label = matchName.captured(1);
+                        }
+                        
+                        renamed = true;
+                    }
+                }
+                
+                if (renamed) {
+                    ConfigManager::instance().setManagedScripts(currentScripts);
+                    ConfigManager::instance().save();
+                    // Rebuild main window buttons to match renames
+                    QMetaObject::invokeMethod(this, "refreshMainButtons", Qt::QueuedConnection);
+                }
+            }
+
+            QRegularExpression re("VERSION\\s*=\\s*['\"]([^'\"]+)['\"]");
+            QRegularExpressionMatch match = re.match(remoteContent);
+            if (match.hasMatch()) {
+                QString remoteVer = match.captured(1);
+                
+                // Read local version
+                QString localPath = QDir(ConfigManager::instance().toolsRootDir()).filePath(s.filename);
+                QFile file(localPath);
+                QString localVer = "0.0.0";
+                if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    QTextStream in(&file);
+                    QString localContent = in.readAll();
+                    file.close();
+                    QRegularExpressionMatch localMatch = re.match(localContent);
+                    if (localMatch.hasMatch()) {
+                        localVer = localMatch.captured(1);
+                    }
+                }
+
+                // Compare versions
+                QStringList localParts = localVer.split(".");
+                QStringList remoteParts = remoteVer.split(".");
+                bool newer = false;
+                for (int i = 0; i < qMin(localParts.size(), remoteParts.size()); ++i) {
+                    int l = localParts[i].toInt();
+                    int r = remoteParts[i].toInt();
+                    if (r > l) {
+                        newer = true;
+                        break;
+                    } else if (l > r) {
+                        break;
+                    }
+                }
+
+                m_toolStates[s.filename] = newer ? ToolState::Update : ToolState::Current;
+            }
+        }
+        reply->deleteLater();
+        context->currentIdx++;
+        scanNextTool(context);
+    });
 }
 
 void MainWindow::launchLHM() {

@@ -8,6 +8,133 @@
 # Imports
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
 
+import sys
+import subprocess
+
+def show_crash_console(app_name, error_text):
+    print(error_text, file=sys.stderr)
+    try:
+        import tkinter as tk
+        from tkinter import messagebox, scrolledtext
+        
+        root = tk.Tk()
+        root.title(f"{app_name} - Diagnostic Crash Console")
+        root.geometry("700x480")
+        root.configure(bg="#0f0f13")
+        
+        title_label = tk.Label(
+            root, 
+            text="⚠️ Application Crash / Startup Failure Detected", 
+            fg="#ff4b72",
+            bg="#0f0f13",
+            font=("Consolas", 14, "bold")
+        )
+        title_label.pack(pady=10)
+        
+        desc_label = tk.Label(
+            root,
+            text="The application failed to start or crashed. Diagnostic logs are shown below:",
+            fg="#e2e0f0",
+            bg="#0f0f13",
+            font=("Consolas", 10)
+        )
+        desc_label.pack(pady=5)
+        
+        text_area = scrolledtext.ScrolledText(
+            root,
+            bg="#1f102a",
+            fg="#e2e0f0",
+            insertbackground="#e2e0f0",
+            font=("Consolas", 9),
+            wrap=tk.WORD
+        )
+        text_area.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        text_area.insert(tk.END, error_text)
+        text_area.configure(state='disabled')
+        
+        btn_frame = tk.Frame(root, bg="#0f0f13")
+        btn_frame.pack(fill=tk.X, padx=20, pady=15)
+        
+        def copy_logs():
+            root.clipboard_clear()
+            root.clipboard_append(error_text)
+            messagebox.showinfo("Copied", "Diagnostic logs copied to clipboard!", parent=root)
+            
+        copy_btn = tk.Button(
+            btn_frame,
+            text="Copy Logs to Clipboard",
+            command=copy_logs,
+            bg="#2a2a38",
+            fg="#e2e0f0",
+            activebackground="#7c5cfc",
+            activeforeground="#ffffff",
+            font=("Consolas", 9, "bold"),
+            relief=tk.FLAT,
+            padx=10,
+            pady=5
+        )
+        copy_btn.pack(side=tk.LEFT)
+        
+        def close_app():
+            root.destroy()
+            
+        close_btn = tk.Button(
+            btn_frame,
+            text="Close Console",
+            command=close_app,
+            bg="#9D00FF",
+            fg="#0f0f13",
+            activebackground="#b44bff",
+            font=("Consolas", 9, "bold"),
+            relief=tk.FLAT,
+            padx=15,
+            pady=5
+        )
+        close_btn.pack(side=tk.RIGHT)
+        
+        root.mainloop()
+    except Exception as tk_ex:
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(
+                0, 
+                f"The application crashed or failed to start.\n\nError details:\n{error_text}", 
+                f"{app_name} - Startup Failure", 
+                0x10 | 0x0
+            )
+        except Exception:
+            print(f"CRASH LOGS:\n{error_text}", file=sys.stderr)
+
+# Supervisor Check
+if "--run-core" not in sys.argv:
+    import os
+    if getattr(sys, 'frozen', False):
+        cmd = [sys.executable, "--run-core"] + sys.argv[1:]
+    else:
+        cmd = [sys.executable, sys.argv[0], "--run-core"] + sys.argv[1:]
+        
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        )
+        stdout_data, stderr_data = process.communicate()
+        exit_code = process.returncode
+        
+        if exit_code != 0:
+            show_crash_console("PyToolBox-Launcher", stdout_data + "\n" + stderr_data)
+            sys.exit(exit_code)
+        else:
+            sys.exit(0)
+    except Exception as e:
+        show_crash_console("PyToolBox-Launcher", f"Failed to start supervisor child process:\n{e}")
+        sys.exit(1)
+else:
+    sys.argv.remove("--run-core")
+
 import importlib
 import io
 import json
@@ -15,8 +142,6 @@ import os
 import re
 import shutil
 import site
-import subprocess
-import sys
 import time
 
 import xml.etree.ElementTree as ET
@@ -77,7 +202,7 @@ from PySide6.QtWidgets import (
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
 
 # ─── App metadata / runtime state ──────────────────────────────────────────
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 UPDATE_BRANCH = "main"           # Default selected update branch
 BETA_POPUP_SHOWN = False
 
@@ -1135,8 +1260,8 @@ class _Bridge(QObject):
 
 bridge = _Bridge()
 
-stdout_redirector = ConsoleRedirector(sys.stdout, bridge.console_log)
-stderr_redirector = ConsoleRedirector(sys.stderr, bridge.console_log)
+stdout_redirector = ConsoleRedirector(sys.stdout)
+stderr_redirector = ConsoleRedirector(sys.stderr)
 sys.stdout = stdout_redirector
 sys.stderr = stderr_redirector
 

@@ -7,6 +7,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QMap>
+#include <memory>
 #include "configmanager.h"
 
 enum class ToolState {
@@ -43,6 +44,20 @@ private:
     bool ensureLHM();
     void runDetached(const QString& filename);
     void startAutoUpdate(const QString& remoteVer);
+
+    struct SyncContext {
+        int currentFileIndex = 0;
+        QStringList files;
+        QString filename;
+    };
+
+    struct ScanContext {
+        int currentIdx = 0;
+        QVector<ManagedScript> scripts;
+    };
+
+    void downloadNextFile(std::shared_ptr<SyncContext> context);
+    void scanNextTool(std::shared_ptr<ScanContext> context);
     
     QNetworkAccessManager* m_networkManager;
     QScrollArea* m_buttonsScroll;
