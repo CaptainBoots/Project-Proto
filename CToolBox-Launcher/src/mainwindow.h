@@ -22,6 +22,8 @@ class MainWindow : public QMainWindow {
 public:
     MainWindow();
     ~MainWindow() override;
+    
+    void syncTool(const QString& filename, ToolState state);
 private slots:
     void refreshMainButtons();
     void refreshButtonLabels();
@@ -34,7 +36,6 @@ private slots:
     void checkForUpdates();
     void fetchRepoTree();
     void scanToolsVersions();
-    void syncTool(const QString& filename, ToolState state);
     void launchLHM();
     
 private:

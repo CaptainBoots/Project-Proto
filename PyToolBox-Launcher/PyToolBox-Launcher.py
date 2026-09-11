@@ -173,6 +173,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QDialog, QWidget, QLabel, QPushButton,
     QLineEdit, QComboBox, QScrollArea, QVBoxLayout, QHBoxLayout, QGridLayout,
     QFrame, QMessageBox, QFileDialog, QSizePolicy, QTextEdit, QStackedWidget,
+    QProgressBar,
 )
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
@@ -180,7 +181,7 @@ from PySide6.QtWidgets import (
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
 
 # ─── App metadata / runtime state ──────────────────────────────────────────
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 UPDATE_BRANCH = "main"           # Default selected update branch
 BETA_POPUP_SHOWN = False
 
@@ -722,10 +723,10 @@ class CircleToggle(QWidget):
 
     toggled = Signal(bool)
 
-    def __init__(self, parent=None, *, enabled: bool = True, color=None, size: int = 20, pad: int = 3):
+    def __init__(self, parent=None, *, enabled: bool = True, color=None, colour=None, size: int = 20, pad: int = 3):
         super().__init__(parent)
         self._enabled = enabled
-        self._color = QColor(colour or ACCENT)
+        self._color = QColor(colour or color or ACCENT)
         self._size = size
         self._pad = pad
         self.setFixedSize(size, size)
@@ -912,6 +913,7 @@ class ConsoleWindow(QDialog):
 
 class SyncWorker(QThread):
     finished_signal = Signal(bool)
+    progress_signal = Signal(int)
 
     def __init__(self, filename):
         super().__init__()
@@ -920,7 +922,7 @@ class SyncWorker(QThread):
     def run(self):
         try:
             # Execute the download/update on a safe background thread
-            success = ensure_tool_folder(self.filename, show_errors=False)
+            success = ensure_tool_folder(self.filename, show_errors=False, progress_callback=self.progress_signal.emit)
             self.finished_signal.emit(success)
         except Exception as e:
             print(f"[Worker] Background thread error syncing {self.filename}: {e}")
@@ -1445,19 +1447,40 @@ def _lhm_exe_path() -> str:
     return os.path.join(TOOLS_ROOT_DIR, LHM_FOLDER, LHM_EXE_NAME)
 
 
-def ensure_lhm(show_errors: bool = False) -> bool:
+def ensure_lhm(show_errors: bool = False, progress_callback=None) -> bool:
     """Download and extract the full LibreHardwareMonitor package if not already present."""
     dest = _lhm_exe_path()
     lhm_dir = os.path.dirname(dest)
     if os.path.isfile(dest):
+        if progress_callback:
+            progress_callback(100)
         return True
 
     os.makedirs(lhm_dir, exist_ok=True)
     print(f"[LHM] Downloading from {LHM_RELEASE_URL} ...")
     try:
-        resp = requests.get(LHM_RELEASE_URL, timeout=60)
+        resp = requests.get(LHM_RELEASE_URL, stream=True, timeout=60)
         resp.raise_for_status()
-        zdata = io.BytesIO(resp.content)
+
+        total_length = resp.headers.get('content-length')
+        downloaded = 0
+        zdata_io = io.BytesIO()
+
+        if total_length is None:
+            zdata_io.write(resp.content)
+            if progress_callback:
+                progress_callback(50)
+        else:
+            total_length = int(total_length)
+            for chunk in resp.iter_content(chunk_size=128 * 1024):
+                if chunk:
+                    zdata_io.write(chunk)
+                    downloaded += len(chunk)
+                    if progress_callback:
+                        pct = int((downloaded / total_length) * 80)
+                        progress_callback(pct)
+
+        zdata = io.BytesIO(zdata_io.getvalue())
         with zipfile.ZipFile(zdata) as zf:
             members = zf.namelist()
 
@@ -1475,7 +1498,8 @@ def ensure_lhm(show_errors: bool = False) -> bool:
                 raise FileNotFoundError(f"{LHM_EXE_NAME} not found in release ZIP")
 
             # Extract everything (exe + all DLLs and supporting files) into lhm_dir
-            for member in members:
+            total_members = len(members)
+            for idx, member in enumerate(members):
                 if member.endswith("/"):
                     continue
                 rel_path = member[len(strip_prefix):] if strip_prefix and member.startswith(strip_prefix) else member
@@ -1484,6 +1508,9 @@ def ensure_lhm(show_errors: bool = False) -> bool:
                 with zipfile.ZipFile(zdata).open(member) as src, open(out_path, "wb") as dst:
                     dst.write(src.read())
                 print(f"[LHM] Extracted: {rel_path}")
+                if progress_callback:
+                    pct = 80 + int((idx + 1) / total_members * 20)
+                    progress_callback(pct)
 
         print(f"[LHM] All files extracted to {lhm_dir}")
         return True
@@ -1763,13 +1790,13 @@ def _tool_remote_files(filename: str) -> list[str] | None:
     return [p for p in paths if p.startswith(tool_prefix)]
 
 
-def ensure_tool_folder(filename: str, show_errors: bool = False) -> bool:
+def ensure_tool_folder(filename: str, show_errors: bool = False, progress_callback=None) -> bool:
     """Downloads (or re-syncs) every file GitHub currently has under a tool's
     folder. Used for both a first-time download AND an update — it always
     just pulls whatever's on the branch right now, so there's no separate
     'ensure' vs 'update' code path and no dependency list to maintain."""
     if filename == LHM_FILENAME:
-        return ensure_lhm(show_errors=show_errors)
+        return ensure_lhm(show_errors=show_errors, progress_callback=progress_callback)
 
     dest_path = _tool_local_path(filename)
     remote_files = _tool_remote_files(filename)
@@ -1777,6 +1804,8 @@ def ensure_tool_folder(filename: str, show_errors: bool = False) -> bool:
     if remote_files is None:
         # Couldn't reach GitHub at all
         if os.path.isfile(dest_path):
+            if progress_callback:
+                progress_callback(100)
             return True
         if show_errors:
             QMessageBox.critical(
@@ -1787,10 +1816,13 @@ def ensure_tool_folder(filename: str, show_errors: bool = False) -> bool:
 
     if not remote_files:
         print(f"[{filename}] No files found under '{_tool_folder_name(filename)}/' on branch '{UPDATE_BRANCH}'.")
+        if progress_callback:
+            progress_callback(100)
         return os.path.isfile(dest_path)
 
     success = True
-    for rel_path in remote_files:
+    total_files = len(remote_files)
+    for idx, rel_path in enumerate(remote_files):
         file_dest = os.path.join(TOOLS_ROOT_DIR, rel_path.replace("/", os.sep))
         try:
             os.makedirs(os.path.dirname(file_dest), exist_ok=True)
@@ -1805,6 +1837,10 @@ def ensure_tool_folder(filename: str, show_errors: bool = False) -> bool:
         except Exception as e:
             print(f"[{filename}] Failed to sync {rel_path}: {e}")
             success = False
+
+        if progress_callback:
+            pct = int((idx + 1) / total_files * 100)
+            progress_callback(pct)
 
     if not success and show_errors:
         QMessageBox.critical(
@@ -1829,26 +1865,21 @@ def launch_script(filename: str) -> None:
 
     state = get_tool_state(filename)
     if state == TOOL_STATE_MISSING:
-
         main_window.footer_label.setText(f"Downloading {filename}... (please wait)")
     elif state == TOOL_STATE_UPDATE:
-
         main_window.footer_label.setText(f"Updating {filename}... (please wait)")
     else:
-
         main_window.footer_label.setText(f"Starting up {filename}...")
 
     # Disable window to prevent double click while downloading/starting
-
     main_window.setEnabled(False)
 
     QApplication.instance().processEvents()
 
     def on_sync_finished(success: bool):
-
+        main_window.footer_progress_bar.setVisible(False)
         main_window.setEnabled(True)
         if not success:
-
             main_window.footer_label.setText("Error preparing script")
             QMessageBox.critical(
                 main_window, f"{filename} Error",
@@ -1857,38 +1888,73 @@ def launch_script(filename: str) -> None:
             return
 
         tool_states[filename] = TOOL_STATE_CURRENT
-
         main_window.refresh_button_labels()
 
         # Resolve local execution path
         dest_path = _tool_local_path(filename)
         script_dir = os.path.dirname(dest_path)
 
+        # Resolve the active python to use. We check if we can launch directly with
+        # the local virtual environment Python to bypass startup lag and flashing.
+        python_exec = get_active_python()
+        if sys.platform == "win32":
+            venv_pythonw = os.path.join(script_dir, ".venv", "Scripts", "pythonw.exe")
+            venv_python = os.path.join(script_dir, ".venv", "Scripts", "python.exe")
+            sentinel_path = os.path.join(script_dir, ".venv", "installed.sentinel")
+            dep_path = os.path.join(script_dir, "dependency.txt")
+
+            target_python = venv_pythonw if os.path.isfile(venv_pythonw) else (venv_python if os.path.isfile(venv_python) else None)
+            if target_python:
+                use_venv = False
+                if not os.path.isfile(dep_path):
+                    use_venv = True
+                elif os.path.isfile(sentinel_path) and os.path.getmtime(sentinel_path) >= os.path.getmtime(dep_path):
+                    use_venv = True
+
+                if use_venv:
+                    python_exec = target_python
+                    print(f"[Launcher] Launching directly with local virtual environment: {python_exec}")
+        else:
+            venv_python = os.path.join(script_dir, ".venv", "bin", "python")
+            sentinel_path = os.path.join(script_dir, ".venv", "installed.sentinel")
+            dep_path = os.path.join(script_dir, "dependency.txt")
+
+            if os.path.isfile(venv_python):
+                use_venv = False
+                if not os.path.isfile(dep_path):
+                    use_venv = True
+                elif os.path.isfile(sentinel_path) and os.path.getmtime(sentinel_path) >= os.path.getmtime(dep_path):
+                    use_venv = True
+
+                if use_venv:
+                    python_exec = venv_python
+                    print(f"[Launcher] Launching directly with local virtual environment: {python_exec}")
+
         try:
-            # Launch script via the configured Python interpreter (falls back to
-            # the ToolBox's own interpreter if none is set) in a detached environment
+            # Launch script via the resolved Python interpreter in a detached environment
             p = subprocess.Popen(
-                [get_active_python(), os.path.basename(dest_path)],
+                [python_exec, os.path.basename(dest_path)],
                 cwd=script_dir,
-                creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
+                creationflags=0x08000000 if sys.platform == "win32" else 0
             )
 
             print(f"[Launcher] Successfully started {filename} (PID: {p.pid})")
-
             main_window.footer_label.setText("Ready")
 
         except Exception as e:
             print(f"[Launcher] Failed to execute {filename}: {e}")
-
             main_window.footer_label.setText("Error launching script")
             QMessageBox.critical(main_window, "Launch Error", f"Failed to start {filename}.\n\nTechnical details:\n{e}")
 
     # Async download in SyncWorker thread
     if state in (TOOL_STATE_MISSING, TOOL_STATE_UPDATE):
+        main_window.footer_progress_bar.setRange(0, 100)
+        main_window.footer_progress_bar.setValue(0)
+        main_window.footer_progress_bar.setVisible(True)
+
         main_window.sync_worker = SyncWorker(filename)
-
         main_window.sync_worker.finished_signal.connect(on_sync_finished)
-
+        main_window.sync_worker.progress_signal.connect(main_window.footer_progress_bar.setValue)
         main_window.sync_worker.start()
     else:
         # Already current, run launch immediately
@@ -2972,6 +3038,47 @@ def open_settings():
                 core_lbl.setStyleSheet(f"color: {SUBTEXT}; background: transparent; border: none; padding-right: 5px;")
                 core_lbl.setFont(qt_font(8, bold=True))
                 row_layout.addWidget(core_lbl)
+                
+                f_name = script["filename"]
+                state = get_tool_state(f_name)
+                is_installed = state != TOOL_STATE_MISSING
+                
+                action_btn = QPushButton("🗑 Uninstall" if is_installed else "⬇ Install")
+                action_btn.setStyleSheet(
+                    f"QPushButton {{ background-color: {PANEL}; color: {RED if is_installed else GREEN}; border: none; "
+                    f"border-radius: 3px; padding: 3px 10px; font-weight: bold; }}"
+                    f"QPushButton:hover {{ background-color: {BORDER}; }}"
+                )
+                action_btn.setFont(qt_font(8, bold=True))
+                action_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                
+                def do_action(_checked=False, f=f_name, b=action_btn):
+                    if get_tool_state(f) != TOOL_STATE_MISSING:
+                        reply = QMessageBox.question(settings_win, "Uninstall Tool", f"Are you sure you want to uninstall and delete all files for {f}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                        if reply == QMessageBox.StandardButton.Yes:
+                            b.setText("Uninstalling...")
+                            b.setEnabled(False)
+                            QApplication.instance().processEvents()
+                            if f == LHM_FILENAME:
+                                d = os.path.dirname(_lhm_exe_path())
+                            else:
+                                d = os.path.dirname(_tool_local_path(f))
+                            if os.path.exists(d):
+                                shutil.rmtree(d, ignore_errors=True)
+                            tool_states[f] = TOOL_STATE_MISSING
+                            refresh_script_list()
+                            main_window.refresh_button_labels()
+                    else:
+                        b.setText("Installing...")
+                        b.setEnabled(False)
+                        QApplication.instance().processEvents()
+                        ensure_tool_folder(f, show_errors=True)
+                        tool_states[f] = _detect_tool_state(f)
+                        refresh_script_list()
+                        main_window.refresh_button_labels()
+                
+                action_btn.clicked.connect(do_action)
+                row_layout.addWidget(action_btn)
 
             list_inner_layout.addWidget(script_row)
 
@@ -3185,6 +3292,16 @@ class ToolBoxWindow(QMainWindow):
         footer_row.addWidget(settings_btn)
 
         footer_outer.addLayout(footer_row)
+
+        self.footer_progress_bar = QProgressBar()
+        self.footer_progress_bar.setTextVisible(False)
+        self.footer_progress_bar.setFixedHeight(4)
+        self.footer_progress_bar.setStyleSheet(
+            f"QProgressBar {{ background-color: {BORDER}; border: none; border-radius: 2px; margin: 0px 24px; }}"
+            f"QProgressBar::chunk {{ background-color: {ACCENT}; border-radius: 2px; }}"
+        )
+        self.footer_progress_bar.setVisible(False)
+        footer_outer.addWidget(self.footer_progress_bar)
 
         self.footer_label = QLabel("Checking for updates on startup...")
         self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

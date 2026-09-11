@@ -1,4 +1,5 @@
 #include "settingsdialog.h"
+#include "mainwindow.h"
 #include "theme.h"
 #include "configmanager.h"
 #include "customwidgets.h"
@@ -9,7 +10,7 @@
 #include <QMessageBox>
 #include <QFontMetrics>
 #include <QScrollArea>
-#include <QCoreApplication>
+#include <QApplication>
 #include <QDir>
 #include <QFile>
 #include <QProcess>
@@ -438,6 +439,62 @@ void SettingsDialog::refreshScriptList() {
             coreLbl->setStyleSheet(QString("color: %1; background: transparent; border: none; padding-right: 5px;").arg(p.subtext));
             coreLbl->setFont(ThemeManager::instance().qtFont(8, true));
             rowLayout->addWidget(coreLbl);
+            
+            // Add Install/Uninstall button for all tools
+            QString fName = script.filename;
+            QString localPath = QDir(ConfigManager::instance().toolsRootDir()).filePath(fName);
+            if (fName == "LibreHardwareMonitor/LibreHardwareMonitor.exe") {
+                localPath = QDir(ConfigManager::instance().toolsRootDir()).filePath("LibreHardwareMonitor/LibreHardwareMonitor.exe");
+            }
+            bool isInstalled = QFile::exists(localPath);
+            
+            QPushButton* actionBtn = new QPushButton(isInstalled ? "🗑 Uninstall" : "⬇ Install");
+            actionBtn->setStyleSheet(
+                QString("QPushButton { background-color: %1; color: %2; border: none; border-radius: 3px; padding: 3px 10px; font-weight: bold; }"
+                        "QPushButton:hover { background-color: %3; }")
+                .arg(p.panel, isInstalled ? p.red : p.green, p.border)
+            );
+            actionBtn->setFont(ThemeManager::instance().qtFont(8, true));
+            actionBtn->setCursor(Qt::PointingHandCursor);
+            connect(actionBtn, &QPushButton::clicked, this, [this, fName, isInstalled, actionBtn]() {
+                if (isInstalled) {
+                    QMessageBox::StandardButton reply;
+                    reply = QMessageBox::question(this, "Uninstall Tool", 
+                                                  "Are you sure you want to uninstall and delete all files for " + fName + "?",
+                                                  QMessageBox::Yes | QMessageBox::No);
+                    if (reply == QMessageBox::Yes) {
+                        actionBtn->setText("Uninstalling...");
+                        actionBtn->setEnabled(false);
+                        QApplication::processEvents();
+                        
+                        QString targetFolder;
+                        if (fName == "LibreHardwareMonitor/LibreHardwareMonitor.exe") {
+                            targetFolder = QDir(ConfigManager::instance().toolsRootDir()).filePath("LibreHardwareMonitor");
+                        } else {
+                            QString fullPath = QDir(ConfigManager::instance().toolsRootDir()).filePath(fName);
+                            targetFolder = QFileInfo(fullPath).absolutePath();
+                        }
+                        
+                        QDir dir(targetFolder);
+                        if (dir.exists()) {
+                            dir.removeRecursively();
+                        }
+                        
+                        refreshScriptList();
+                        emit scriptsChanged();
+                    }
+                } else {
+                    actionBtn->setText("Installing...");
+                    actionBtn->setEnabled(false);
+                    QApplication::processEvents();
+                    
+                    if (MainWindow* mainWin = qobject_cast<MainWindow*>(this->parent())) {
+                        mainWin->syncTool(fName, ToolState::Current);
+                        refreshScriptList();
+                    }
+                }
+            });
+            rowLayout->addWidget(actionBtn);
         }
 
         m_scriptListLayout->addWidget(scriptRow);

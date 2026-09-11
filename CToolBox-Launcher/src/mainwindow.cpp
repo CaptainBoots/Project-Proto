@@ -21,6 +21,8 @@
 #include <QUrl>
 #include <QSet>
 #include <QProgressDialog>
+#include <QFileInfo>
+#include <QDateTime>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -146,7 +148,7 @@ void MainWindow::buildRoot() {
     m_downloadProgressBar->setTextVisible(false);
     m_downloadProgressBar->setFixedHeight(4);
     m_downloadProgressBar->setStyleSheet(
-        QString("QProgressBar { background-color: %1; border: none; border-radius: 2px; margin: 2px 24px; }"
+        QString("QProgressBar { background-color: %1; border: none; border-radius: 2px; margin: 0px 24px; }"
                 "QProgressBar::chunk { background-color: %2; border-radius: 2px; }")
         .arg(p.border, p.accent)
     );
@@ -278,6 +280,53 @@ void MainWindow::runDetached(const QString& filename) {
     
     QString python = ConfigManager::instance().activePython();
     QString scriptFile = QFileInfo(fullPath).fileName();
+
+    // Check if we can launch directly with local virtual environment Python to bypass startup lag and flashing.
+#ifdef Q_OS_WIN
+    QString venvPythonw = QDir(scriptDir).filePath(".venv/Scripts/pythonw.exe");
+    QString venvPython = QDir(scriptDir).filePath(".venv/Scripts/python.exe");
+    QString sentinelPath = QDir(scriptDir).filePath(".venv/installed.sentinel");
+    QString depPath = QDir(scriptDir).filePath("dependency.txt");
+
+    QString targetPython = QFile::exists(venvPythonw) ? venvPythonw : (QFile::exists(venvPython) ? venvPython : "");
+    if (!targetPython.isEmpty()) {
+        bool useVenv = false;
+        if (!QFile::exists(depPath)) {
+            useVenv = true;
+        } else if (QFile::exists(sentinelPath)) {
+            QFileInfo sentinelInfo(sentinelPath);
+            QFileInfo depInfo(depPath);
+            if (sentinelInfo.lastModified() >= depInfo.lastModified()) {
+                useVenv = true;
+            }
+        }
+        if (useVenv) {
+            python = targetPython;
+            ConsoleWindow::appendLog("[Launcher] Launching directly with local virtual environment: " + python + "\n");
+        }
+    }
+#else
+    QString venvPython = QDir(scriptDir).filePath(".venv/bin/python");
+    QString sentinelPath = QDir(scriptDir).filePath(".venv/installed.sentinel");
+    QString depPath = QDir(scriptDir).filePath("dependency.txt");
+
+    if (QFile::exists(venvPython)) {
+        bool useVenv = false;
+        if (!QFile::exists(depPath)) {
+            useVenv = true;
+        } else if (QFile::exists(sentinelPath)) {
+            QFileInfo sentinelInfo(sentinelPath);
+            QFileInfo depInfo(depPath);
+            if (sentinelInfo.lastModified() >= depInfo.lastModified()) {
+                useVenv = true;
+            }
+        }
+        if (useVenv) {
+            python = venvPython;
+            ConsoleWindow::appendLog("[Launcher] Launching directly with local virtual environment: " + python + "\n");
+        }
+    }
+#endif
 
     qDebug() << "Launching script:" << python << scriptFile << "in" << scriptDir;
     
