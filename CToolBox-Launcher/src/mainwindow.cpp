@@ -380,6 +380,7 @@ void MainWindow::syncTool(const QString& filename, ToolState targetState) {
                 QString tempDir = QDir(toolsRoot).filePath("temp_extract");
                 QDir().mkpath(tempDir);
 
+                int exitCode = -1;
                 #ifdef Q_OS_WIN
                 QString cmd = QString(
                     "Expand-Archive -Path '%1' -DestinationPath '%2' -Force; "
@@ -388,7 +389,28 @@ void MainWindow::syncTool(const QString& filename, ToolState targetState) {
                     "Remove-Item -Path '%1' -Force"
                 ).arg(QDir::toNativeSeparators(zipPath), QDir::toNativeSeparators(tempDir), branch, QDir::toNativeSeparators(toolsRoot));
 
-                int exitCode = QProcess::execute("powershell", {"-NoProfile", "-Command", cmd});
+                exitCode = QProcess::execute("powershell", {"-NoProfile", "-Command", cmd});
+                #else
+                QString pyCmd = QString(
+                    "import zipfile, shutil, os; "
+                    "with zipfile.ZipFile('%1', 'r') as zip_ref: "
+                    "    zip_ref.extractall('%2'); "
+                    "src_dir = os.path.join('%2', 'Nova-Tools-%3'); "
+                    "for item in os.listdir(src_dir): "
+                    "    s = os.path.join(src_dir, item); "
+                    "    d = os.path.join('%4', item); "
+                    "    if os.path.isdir(s): "
+                    "        if os.path.exists(d): shutil.rmtree(d); "
+                    "        shutil.copytree(s, d); "
+                    "    else: "
+                    "        shutil.copy2(s, d); "
+                    "shutil.rmtree('%2'); "
+                    "os.remove('%1')"
+                ).arg(zipPath, tempDir, branch, toolsRoot);
+
+                exitCode = QProcess::execute("python3", {"-c", pyCmd});
+                #endif
+
                 if (exitCode == 0) {
                     ConsoleWindow::appendLog("[Sync] Successfully extracted and updated tools archive.\n");
                     
@@ -433,10 +455,6 @@ void MainWindow::syncTool(const QString& filename, ToolState targetState) {
                     m_downloadProgressBar->setVisible(false);
                     setEnabled(true);
                 }
-                #else
-                m_downloadProgressBar->setVisible(false);
-                setEnabled(true);
-                #endif
             } else {
                 m_footerLabel->setText("Extraction failed");
                 QMessageBox::critical(this, "Sync Error", "Failed to open ZIP archive for writing.");
@@ -604,7 +622,40 @@ void MainWindow::startAutoUpdate(const QString& remoteVer) {
                     QMessageBox::critical(this, "Update Error", "Failed to start updater helper process.");
                 }
                 #else
-                QMessageBox::information(this, "Update Downloaded", "The update.zip has been downloaded to your application folder. Please extract it manually on your platform.");
+                qint64 myPid = QCoreApplication::applicationPid();
+                // We run a detached python process that:
+                // 1. Waits for our PID to terminate
+                // 2. Extracts update.zip
+                // 3. Deletes update.zip
+                // 4. Starts the launcher again
+                QString pyCmd = QString(
+                    "import os, sys, time, zipfile, subprocess; "
+                    "pid = %1; "
+                    "while True: "
+                    "    try: "
+                    "        os.kill(pid, 0); "
+                    "        time.sleep(0.1); "
+                    "    except OSError: "
+                    "        break; "
+                    "time.sleep(0.5); "
+                    "try: "
+                    "    with zipfile.ZipFile('%2/update.zip', 'r') as zip_ref: "
+                    "        zip_ref.extractall('%2'); "
+                    "    os.remove('%2/update.zip'); "
+                    "    exe_path = os.path.join('%2', 'CToolBox-Launcher'); "
+                    "    if os.path.exists(exe_path): "
+                    "        os.chmod(exe_path, os.stat(exe_path).st_mode | 0o111); "
+                    "    subprocess.Popen([exe_path]); "
+                    "except Exception as e: "
+                    "    print(e)"
+                ).arg(QString::number(myPid), appDir);
+
+                bool ok = QProcess::startDetached("python3", {"-c", pyCmd});
+                if (ok) {
+                    qApp->quit();
+                } else {
+                    QMessageBox::critical(this, "Update Error", "Failed to start updater helper process.");
+                }
                 #endif
             } else {
                 QMessageBox::critical(this, "Update Error", "Could not write the update file to disk. Check permissions.");
@@ -949,7 +1000,21 @@ bool MainWindow::ensureLHM() {
         return false;
     }
 #else
-    return false;
+    // Extraction on non-Windows (e.g. Linux) if they want to run it via Wine, or just for completeness
+    QString pyCmd = QString(
+        "import zipfile, os; "
+        "with zipfile.ZipFile('%1', 'r') as zip_ref: "
+        "    zip_ref.extractall('%2'); "
+        "os.remove('%1')"
+    ).arg(zipPath, destDir);
+    int exitCode = QProcess::execute("python3", {"-c", pyCmd});
+    if (exitCode == 0) {
+        ConsoleWindow::appendLog("[LHM] Successfully downloaded and decompressed LHM zip on Linux.\n");
+        return true;
+    } else {
+        QMessageBox::critical(this, "Libre Hardware Monitor", "Failed to extract Libre Hardware Monitor zip package.");
+        return false;
+    }
 #endif
 }
 

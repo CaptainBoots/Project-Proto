@@ -95,13 +95,16 @@ def show_crash_console(app_name, error_text):
         root.mainloop()
     except Exception as tk_ex:
         try:
-            import ctypes
-            ctypes.windll.user32.MessageBoxW(
-                0, 
-                f"The application crashed or failed to start.\n\nError details:\n{error_text}", 
-                f"{app_name} - Startup Failure", 
-                0x10 | 0x0
-            )
+            if sys.platform == "win32":
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(
+                    0, 
+                    f"The application crashed or failed to start.\n\nError details:\n{error_text}", 
+                    f"{app_name} - Startup Failure", 
+                    0x10 | 0x0
+                )
+            else:
+                print(f"CRASH LOGS:\n{error_text}", file=sys.stderr)
         except Exception:
             print(f"CRASH LOGS:\n{error_text}", file=sys.stderr)
 
@@ -181,7 +184,7 @@ from PySide6.QtWidgets import (
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════#
 
 # ─── App metadata / runtime state ──────────────────────────────────────────
-VERSION = "1.1.4"
+VERSION = "1.2.0"
 UPDATE_BRANCH = "main"           # Default selected update branch
 BETA_POPUP_SHOWN = False
 
@@ -207,7 +210,10 @@ if getattr(sys, 'frozen', False):
 else:
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-CENTRAL_CONFIG_DIR = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+if sys.platform == "win32":
+    CENTRAL_CONFIG_DIR = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+else:
+    CENTRAL_CONFIG_DIR = os.path.expanduser("~/.config/PyToolBox-Launcher")
 CENTRAL_CONFIG_FILE = os.path.join(CENTRAL_CONFIG_DIR, "toolbox_config.json")
 TOOLS_PATH_POINTER = os.path.join(CENTRAL_CONFIG_DIR, "tools_path.txt")
 INSTALL_PATH_POINTER = os.path.join(CENTRAL_CONFIG_DIR, "install_path.txt")
@@ -271,15 +277,16 @@ def get_active_python() -> str:
     if PYTHON_INTERPRETER and os.path.isfile(PYTHON_INTERPRETER):
         return PYTHON_INTERPRETER
 
-    # If frozen, sys.executable is the compiled .exe itself, which cannot run .py scripts!
+    # If frozen, sys.executable is the compiled executable itself, which cannot run .py scripts!
     if getattr(sys, 'frozen', False):
         # Let's search for python on the system PATH
-        for py_cmd in ["pythonw", "python", "python3"]:
+        py_cmds = ["pythonw", "python", "python3"] if sys.platform == "win32" else ["python3", "python"]
+        for py_cmd in py_cmds:
             py_path = shutil.which(py_cmd)
             if py_path:
                 return py_path
-        # If no python is found in PATH, fallback to 'pythonw' and let OS resolve it
-        return "pythonw"
+        # If no python is found in PATH, fallback and let OS resolve it
+        return "pythonw" if sys.platform == "win32" else "python3"
 
     return sys.executable
 
@@ -936,7 +943,10 @@ class OnboardingWizard(QDialog):
         self.setFixedSize(550, 450)
         self.setStyleSheet(f"background-color: {BG}; color: {TEXT};")
 
-        self.tools_dir = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+        if sys.platform == "win32":
+            self.tools_dir = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+        else:
+            self.tools_dir = os.path.expanduser("~/Nova-Tools")
         self.selected_theme = "rich_purple"
 
         # Stacked layout for pages
@@ -1141,7 +1151,10 @@ class OnboardingWizard(QDialog):
             self.path_entry.setText(self.tools_dir)
 
     def use_default_path(self):
-        self.tools_dir = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+        if sys.platform == "win32":
+            self.tools_dir = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+        else:
+            self.tools_dir = os.path.expanduser("~/Nova-Tools")
         self.path_entry.setText(self.tools_dir)
 
     def preview_theme(self, label_text):
@@ -1234,7 +1247,7 @@ _migrate_legacy_config_folder()
 def load_managed_scripts():
     global UPDATE_BRANCH, BETA_POPUP_SHOWN, PYTHON_INTERPRETER, colour_mode, MANAGED_SCRIPTS, TOOLS_ROOT_DIR
     
-    appdata_toolbox_dir = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+    appdata_toolbox_dir = CENTRAL_CONFIG_DIR
     os.makedirs(appdata_toolbox_dir, exist_ok=True)
     status_file = os.path.join(appdata_toolbox_dir, "run_status.txt")
 
@@ -1301,7 +1314,10 @@ def load_managed_scripts():
             chosen_dir = wizard.tools_dir
             chosen_theme = wizard.selected_theme
         else:
-            chosen_dir = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+            if sys.platform == "win32":
+                chosen_dir = os.path.join(os.getenv("LOCALAPPDATA", ""), "")
+            else:
+                chosen_dir = os.path.expanduser("~/Nova-Tools")
             chosen_theme = "rich_purple"
 
         # Temporarily apply layout path to discover tools during setup
@@ -2089,6 +2105,14 @@ def perform_update(remote_text=None, source_url=None):
                         with open(current_exe, "wb") as f_dst:
                             for chunk in resp.iter_content(chunk_size=8192):
                                 f_dst.write(chunk)
+                        if sys.platform != "win32":
+                            try:
+                                import stat
+                                st = os.stat(current_exe)
+                                os.chmod(current_exe, st.st_mode | stat.S_IEXEC)
+                                print(f"[Updater] Set execute permissions on {current_exe}")
+                            except Exception as perm_ex:
+                                print(f"[Updater] Failed to set execute permission on {current_exe}: {perm_ex}")
                         downloaded = True
                         print(f"[Updater] Successfully downloaded updated executable from: {download_url}")
                         break
@@ -2175,14 +2199,19 @@ def perform_update(remote_text=None, source_url=None):
                     os.environ.pop(key, None)
             
             # Spawn a detached, silent background command that:
-            # 1. Sleeps for 2 seconds (ping 127.0.0.1 -n 3 > nul) to let this old process fully exit
-            # 2. Launches the new executable cleanly (start "" "ToolBox.exe")
+            # 1. Sleeps for 2 seconds (ping or sleep) to let this old process fully exit
+            # 2. Launches the new executable cleanly
             # This completely breaks the parent process chain, letting PyInstaller boot cleanly.
-            cmd = f'ping 127.0.0.1 -n 3 > nul && start "" "{sys.executable}"'
+            if sys.platform == "win32":
+                cmd = f'ping 127.0.0.1 -n 3 > nul && start "" "{sys.executable}"'
+                creationflags = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+            else:
+                cmd = f'sleep 2 && "{sys.executable}" &'
+                creationflags = 0
             subprocess.Popen(
                 cmd,
                 shell=True,
-                creationflags=subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
+                creationflags=creationflags
             )
         else:
             subprocess.Popen([sys.executable, script_path], cwd=os.path.dirname(script_path))
