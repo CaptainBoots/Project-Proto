@@ -1,0 +1,486 @@
+{
+  "osc_ip": "127.0.0.1",
+  "osc_port": 9000,
+  "interface": "eno1",
+  "temp_var1": "space block",
+  "location": "0,0",
+  "slow_mode": false,
+  "speed_mode": false,
+  "media_title_trim": true,
+  "cat_mode": false,
+  "progress_filled": "\u2592",
+  "progress_border": "\u2593",
+  "progress_empty": "\u2591",
+  "theme_mode": "new",
+  "pages": [
+    {
+      "enabled": true,
+      "duration": 20,
+      "slots": [
+        {
+          "module": "custom_text",
+          "text": "Boots's OSC Chatbox",
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "Boots's OSC Chatbox"
+            }
+          ]
+        },
+        {
+          "module": "time",
+          "modules": [
+            {
+              "module": "time",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "Download:"
+            },
+            {
+              "module": "net_down"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "Upload:"
+            },
+            {
+              "module": "net_up"
+            }
+          ]
+        },
+        {
+          "module": "media_progress",
+          "modules": [
+            {
+              "module": "media_progress",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "media_title",
+          "modules": [
+            {
+              "module": "media_title",
+              "text": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "enabled": true,
+      "duration": 20,
+      "slots": [
+        {
+          "module": "custom_text",
+          "text": "Hardware",
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "Hardware"
+            }
+          ]
+        },
+        {
+          "module": "time",
+          "modules": [
+            {
+              "module": "time",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "cpu_name"
+            },
+            {
+              "module": "cpu_load"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "cpu_temp"
+            },
+            {
+              "module": "cpu_power"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "gpu_name",
+              "text": "0"
+            },
+            {
+              "module": "gpu_load",
+              "text": "0"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "gpu_temp",
+              "text": "0"
+            },
+            {
+              "module": "gpu_power",
+              "text": "0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "enabled": true,
+      "duration": 20,
+      "slots": [
+        {
+          "module": "custom_text",
+          "text": "Memory",
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "Memory"
+            }
+          ]
+        },
+        {
+          "module": "time",
+          "modules": [
+            {
+              "module": "time",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "ram_used_of_total",
+          "modules": [
+            {
+              "module": "ram_used_of_total",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "vram_used_of_total",
+          "text": "0",
+          "modules": [
+            {
+              "module": "vram_used_of_total",
+              "text": "0"
+            }
+          ]
+        },
+        {
+          "module": "media_progress",
+          "modules": [
+            {
+              "module": "media_progress",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "media_title",
+          "modules": [
+            {
+              "module": "media_title",
+              "text": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "enabled": true,
+      "duration": 20,
+      "slots": [
+        {
+          "module": "custom_text",
+          "text": "Local Weather",
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "Local Weather"
+            }
+          ]
+        },
+        {
+          "module": "time",
+          "modules": [
+            {
+              "module": "time",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "weather_temp"
+            },
+            {
+              "module": "weather_humidity"
+            }
+          ]
+        },
+        {
+          "module": "weather_desc",
+          "modules": [
+            {
+              "module": "weather_desc",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "media_progress",
+          "modules": [
+            {
+              "module": "media_progress",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "media_title",
+          "modules": [
+            {
+              "module": "media_title",
+              "text": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "enabled": true,
+      "duration": 20,
+      "slots": [
+        {
+          "module": "custom_text",
+          "text": "Now Playing",
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "Now Playing"
+            }
+          ]
+        },
+        {
+          "module": "time",
+          "modules": [
+            {
+              "module": "time",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "media_progress",
+          "modules": [
+            {
+              "module": "media_progress",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "media_title",
+          "modules": [
+            {
+              "module": "media_title",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "media_time"
+            },
+            {
+              "module": "media_artist"
+            }
+          ]
+        },
+        {
+          "module": "media_album",
+          "modules": [
+            {
+              "module": "media_album",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "media_detail",
+          "modules": [
+            {
+              "module": "media_detail",
+              "text": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "enabled": true,
+      "duration": 20,
+      "slots": [
+        {
+          "module": "custom_text",
+          "text": "VRChat Stats",
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "VRChat Stats"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "VRC FPS:"
+            },
+            {
+              "module": "desktop_fps"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "VRC World:"
+            },
+            {
+              "module": "vrc_world"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "VRC Player Count:"
+            },
+            {
+              "module": "vrc_players"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "VRC Avatar Name:"
+            },
+            {
+              "module": "vrc_avatar"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "VRC Ping:"
+            },
+            {
+              "module": "vrc_ping"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "enabled": true,
+      "duration": 20,
+      "slots": [
+        {
+          "module": "custom_text",
+          "text": "Steam VR Stats",
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "Steam VR Stats"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "VR FPS:"
+            },
+            {
+              "module": "vr_fps"
+            }
+          ]
+        },
+        {
+          "modules": [
+            {
+              "module": "custom_text",
+              "text": "VR Frametime:"
+            },
+            {
+              "module": "vr_frame-time"
+            }
+          ]
+        },
+        {
+          "module": "vr_headset",
+          "modules": [
+            {
+              "module": "vr_headset",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "vr_all_battery",
+          "modules": [
+            {
+              "module": "vr_all_battery",
+              "text": ""
+            }
+          ]
+        },
+        {
+          "module": "vr_connected",
+          "modules": [
+            {
+              "module": "vr_connected",
+              "text": ""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "media_priority_order": null,
+  "secure_storage_mode": "keyring",
+  "spotify_client_id": "",
+  "pw_manager_item_name": "OSC-Chatbox Spotify"
+}
