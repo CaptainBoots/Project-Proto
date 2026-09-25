@@ -11,9 +11,11 @@ __pycache__/
 # IDE configurations
 .idea/
 .vscode/
+.opencode/
 /CLAUDE.md
 /GEMINI.md
 /AGENTS.md
+/opencode.json
 
 # None Tools
 /Nova-Tools/configs/
